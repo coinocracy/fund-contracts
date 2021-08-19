@@ -38,3 +38,5 @@ Check `package.json` scripts for more options.
 Use `.env.example` file and adapt it to you values and settings.
 
 Have Fun!
+
+Test
