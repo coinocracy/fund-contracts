@@ -1,5 +1,3 @@
-
-//Remix Version of v0.3 of smart contract
 pragma solidity ^0.8.2;
 
 //use compiler +0.5.3 in remix
@@ -10,6 +8,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 // import "@openzeppelin/contracts/access/Roles.sol";
 // import "@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol";
 // import "@openzeppelin/contracts/access/roles/WhitelistedRole.sol";
+
+import "./GuildBank.sol";
 /*
     This contract requires the above OpenZeppelin imports. 
 
@@ -23,9 +23,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
    
     - allow for proxing of only a percentage of votes in 'updateDelegateKey' - would need to update submitVote as well. 
     
-    -upon removal of a member, The LAO currently lets that member get their fairshare back of non-deployed funds, but..
+    -upon removal of a member, The VAO currently lets that member get their fairshare back of non-deployed funds, but..
     ...do we allow them to take out any perceived gains in equity? Or, just make the member leave any of those potential gains on the table. 
-    ...maybe solution is to make them saleable/transferrable to other LAO members?  : LEAVE GAINS ON TABLE 
+    ...maybe solution is to make them saleable/transferrable to other VAO members?  : LEAVE GAINS ON TABLE 
     
     -Break the Venture Moloch Contract into smaller components/contracts
     
@@ -38,39 +38,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 working on possiblity of making 'shares' standard erc-20s
 */
 
-
-
-contract GuildBank is Ownable {
-    using SafeMath for uint256;
-   
-    IERC20 private contributionToken; // contribution token contract reference
-
-    event Withdrawal(address indexed receiver, uint256 amount);
-    //event FundsWithdrawal(address indexed applicant, uint256 fundsRequested);
-    event AssetWithdrawal(IERC20 assetToken, address indexed receiver, uint256 amount);
- 
-    // contributionToken is used to fund ventures and distribute dividends, e.g., wETH or DAI
-    constructor(address contributionTokenAddress) public {
-        contributionToken = IERC20(contributionTokenAddress);
-    }
-
-    // withdraw contribution tokens 
-    function withdraw(address receiver, uint256 amount) public onlyOwner returns (bool) {
-        emit Withdrawal(receiver, amount);
-        return contributionToken.transfer(receiver, amount);
-    }
-      
-    // onlySummoner in Moloch can withdraw equity tokens
-    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) public onlyOwner returns(bool) {
-        emit AssetWithdrawal(assetToken, receiver, amount);
-        return IERC20(assetToken).transfer(receiver, amount);
-    }   
-    
-}
-
-
 // contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
-contract VentureMoloch is Ownable{
+contract VentureMoloch is Ownable {
     using SafeMath for uint256;
 
     /***************
@@ -728,14 +697,14 @@ contract VentureMoloch is Ownable{
         return ProposalQueue[proposalIndex].votesByMember[memberAddress];
     }
     //get GuildBank balance for an equity token
-    function getEquityBalance(IERC20 assetToken)  view public returns (uint256) {
+    function getEquityBalance(IERC20 assetToken) public view returns (uint256) {
         return IERC20(assetToken).balanceOf(address(guildBank));
     }
-    function getEquityTokenAddresses () view public returns(IERC20 [] memory)  {
+    function getEquityTokenAddresses () public view returns(IERC20 [] memory)  {
         return equityHoldingsAddress;
     }
 
-    function getTotalAvailable () view public returns (uint256){
+    function getTotalAvailable () public view returns (uint256){
         return totalContributed.sub(totalWithdrawals);
     }
     ///at what period does the voting period end. 

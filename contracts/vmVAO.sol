@@ -447,25 +447,25 @@ contract VentureMolochLAO { // vmLAO
     struct Member {
     	address delegateKey; // the key responsible for submitting proposals and voting - defaults to member address unless updated
         uint256 shares; // the # of shares assigned to this member
-   	bool exists; // always true once a member has been created
-	uint256 highestIndexYesVote; // highest proposal index # on which the member voted YES
+		bool exists; // always true once a member has been created
+		uint256 highestIndexYesVote; // highest proposal index # on which the member voted YES
     }
     
     struct Proposal {
-   	address proposer; // the member who submitted the proposal
-   	address applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
-   	uint256 tributeAmount; // amount of tokens offered as tribute
-   	IERC20 tributeToken; // the tribute token reference for subscription or alternative contribution
-   	uint256 fundsRequested; // the funds requested for applicant
-	IERC20 fundingToken; // the type of ERC-20 token that funds are requested in for applicant
-   	string details; // proposal details - could be IPFS hash, plaintext, or JSON
-   	uint256 startingPeriod; // the period in which voting can start for this proposal
-   	uint256 yesVotes; // the total number of YES votes for this proposal
-   	uint256 noVotes; // the total number of NO votes for this proposal
-   	bool processed; // true only if the proposal has been processed
-   	bool didPass; // true only if the proposal passed
-   	bool aborted; // true only if applicant calls "abort" before end of voting period
-   	mapping (address => Vote) votesByMember; // the votes on this proposal by each member
+		address proposer; // the member who submitted the proposal
+		address applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
+		uint256 tributeAmount; // amount of tokens offered as tribute
+		IERC20 tributeToken; // the tribute token reference for subscription or alternative contribution
+		uint256 fundsRequested; // the funds requested for applicant
+		IERC20 fundingToken; // the type of ERC-20 token that funds are requested in for applicant
+		string details; // proposal details - could be IPFS hash, plaintext, or JSON
+		uint256 startingPeriod; // the period in which voting can start for this proposal
+		uint256 yesVotes; // the total number of YES votes for this proposal
+		uint256 noVotes; // the total number of NO votes for this proposal
+		bool processed; // true only if the proposal has been processed
+		bool didPass; // true only if the proposal passed
+		bool aborted; // true only if applicant calls "abort" before end of voting period
+		mapping (address => Vote) votesByMember; // the votes on this proposal by each member
     }
 
     mapping (address => Member) public members;

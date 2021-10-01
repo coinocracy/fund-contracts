@@ -1,8 +1,8 @@
 pragma solidity ^0.8.2;
 
-import "./oz/Ownable.sol";
-import "./oz/SafeMath.sol";
-import "./oz/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract GuildBank is Ownable {
 	using SafeMath for uint256;
@@ -14,7 +14,7 @@ contract GuildBank is Ownable {
 	event AssetWithdrawal(IERC20 assetToken, address indexed receiver, uint256 amount);
 	
 	// contributionToken is used to fund ventures and distribute dividends, e.g., wETH or DAI
-	constructor(address contributionTokenAddress) public {
+	constructor(address contributionTokenAddress) {
     		contributionToken = IERC20(contributionTokenAddress);
 	}
 
