@@ -1,15 +1,15 @@
 
 //Remix Version of v0.3 of smart contract
-pragma solidity ^0.5.3;
+pragma solidity ^0.8.2;
 
 //use compiler +0.5.3 in remix
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/GSN/Context.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/access/Roles.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/access/roles/WhitelistAdminRole.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/access/roles/WhitelistedRole.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+// import "@openzeppelin/contracts/access/Roles.sol";
+// import "@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol";
+// import "@openzeppelin/contracts/access/roles/WhitelistedRole.sol";
 /*
     This contract requires the above OpenZeppelin imports. 
 
@@ -69,7 +69,8 @@ contract GuildBank is Ownable {
 }
 
 
-contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
+// contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
+contract VentureMoloch is Ownable{
     using SafeMath for uint256;
 
     /***************
@@ -193,7 +194,8 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
 
     mapping (address => Member) public members;
     mapping (address => address) public memberAddressByDelegateKey;
-    Proposal[] public ProposalQueue;
+    mapping (uint => Proposal) public ProposalQueue;
+    uint public numProposal;
     address[] public memberAccts; 
     IERC20 [] public equityHoldingsAddress;
      //mapping (IERC20 => uint) public equityHoldings;
@@ -247,7 +249,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
         abortWindow = _abortWindow;
         dilutionBound = _dilutionBound;
 
-        summoningTime = now;
+        summoningTime = block.timestamp;
     }
 
     /*****************
@@ -283,33 +285,30 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
         // compute startingPeriod for proposal
         uint256 startingPeriod = max(
             getCurrentPeriod(),
-            ProposalQueue.length == 0 ? 0 : ProposalQueue[ProposalQueue.length.sub(1)].startingPeriod
+            numProposal == 0 ? 0 : ProposalQueue[numProposal.sub(1)].startingPeriod
         ).add(1);
 
         // create proposal ...
-        Proposal memory proposal = Proposal({
-            proposer: memberAddress,
-            applicant: applicant,
-            tributeAmount: tributeAmount,
-            tributeToken: tributeToken,
-            //sharesRequested: sharesRequested,
-            //sharesRequested: 0,
-            fundsRequested: fundsRequested,
-            details: details,
-            startingPeriod: startingPeriod,
-            yesVotes: 0,
-            noVotes: 0,
-            processed: false,
-            didPass: false,
-           fundsTransferred: false,
-            aborted: false,
-            maxTotalSharesAtYesVote: 0
-        });
 
-        // ... and append it to the queue
-        ProposalQueue.push(proposal);
+        Proposal storage proposal = ProposalQueue[numProposal++];
+        proposal.proposer = memberAddress;
+        proposal.applicant = applicant;
+        proposal.tributeAmount = tributeAmount;
+        proposal.tributeToken = tributeToken;
+        //sharesRequested: sharesRequested,
+        //sharesRequested: 0,
+        proposal.fundsRequested = fundsRequested;
+        proposal.details = details;
+        proposal.startingPeriod = startingPeriod;
+        proposal.yesVotes = 0;
+        proposal.noVotes = 0;
+        proposal.processed = false;
+        proposal.didPass = false;
+        proposal.fundsTransferred = false;
+        proposal.aborted = false;
+        proposal.maxTotalSharesAtYesVote = 0;
 
-        uint256 proposalIndex = ProposalQueue.length.sub(1);
+        uint256 proposalIndex = numProposal.sub(1);
         emit SubmitProposal(
             proposalIndex, 
             msg.sender, 
@@ -326,7 +325,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
         address memberAddress = memberAddressByDelegateKey[msg.sender];
         Member storage member = members[memberAddress];
 
-        require(proposalIndex < ProposalQueue.length, "Moloch::submitVote - proposal does not exist");
+        require(proposalIndex < numProposal, "Moloch::submitVote - proposal does not exist");
         Proposal storage proposal = ProposalQueue[proposalIndex];
 
         require(uintVote < 3, "Moloch::submitVote - uintVote must be less than 3");
@@ -363,7 +362,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
     }
 
     function processProposal(uint256 proposalIndex) public {
-        require(proposalIndex < ProposalQueue.length, "Moloch::processProposal - proposal does not exist");
+        require(proposalIndex < numProposal, "Moloch::processProposal - proposal does not exist");
         Proposal storage proposal = ProposalQueue[proposalIndex];
 
         require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength),"Moloch::processProposal - proposal is not ready to be processed");
@@ -414,7 +413,8 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
         documents in order, but has passed for funding.
         This avoids having to delay processing proposals. 
     */
-    function fundApprovedProposal(uint index) public onlyWhitelisted
+    // function fundApprovedProposal(uint index) public onlyWhitelisted
+    function fundApprovedProposal(uint index) public 
      {
         Proposal storage proposal = ProposalQueue[index];
         //proposal must have passed
@@ -427,7 +427,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
         //mapping equity address to amount of tokens 
        // equityHoldings[proposal.tributeToken] = proposal.tributeAmount;
        // push IERC 20 address into array. 
-        equityHoldingsAddress.push(proposal.tributeToken) -1;
+        equityHoldingsAddress.push(proposal.tributeToken);
 
         //fund the project
         require(
@@ -488,7 +488,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
         Any tribute amount put up for membership and/or guild bank funding will then be returned.
     */
     function abortProposal(uint256 proposalIndex) public {
-        require(proposalIndex < ProposalQueue.length, "Moloch::abort - proposal does not exist");
+        require(proposalIndex < numProposal, "Moloch::abort - proposal does not exist");
         Proposal storage proposal = ProposalQueue[proposalIndex];
 
         require(msg.sender == proposal.applicant, "Moloch::abort - msg.sender must be applicant");
@@ -528,13 +528,15 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
     }
 
     // Extension to original Moloch Code: Summoner withdraws and administers tribute tokens (but not member contributions or dividends)
-    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) onlyWhitelisted public returns (bool)  {
+    // function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) onlyWhitelisted public returns (bool)  {
+    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) public returns (bool)  {
         require(assetToken != contributionToken); 
         return guildBank.adminWithdrawAsset(assetToken, receiver, amount);
     }
 
     //@dev function to add a member without going through submit proposal process
-    function  addMember (address _newMemberAddress, uint256 _tributeAmount) onlyWhitelisted public returns(bool) {       
+    // function  addMember (address _newMemberAddress, uint256 _tributeAmount) onlyWhitelisted public returns(bool) {       
+    function  addMember (address _newMemberAddress, uint256 _tributeAmount) public returns(bool) {       
            require(members[_newMemberAddress].exists  == false, "Moloch::member already exists");
            require(_newMemberAddress != address(0), "Moloch::addMember - applicant cannot be 0");
             //require new member address to not exist    
@@ -554,7 +556,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
             // transfer contribution token to guild bank
             require(contributionToken.transferFrom(_newMemberAddress, address(guildBank), _tributeAmount), "Moloch::submitProposal - tribute token transfer failed");
             //add address to member accounts arrary
-            memberAccts.push(_newMemberAddress) -1;
+            memberAccts.push(_newMemberAddress);
             //emit event 
             emit MemberAdded(_newMemberAddress, 100000, _tributeAmount);
     }
@@ -574,7 +576,8 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
     }
     
     // @dev forces a current member out
-    function  removeMember (address currentMember) onlyWhitelisted public returns(bool)  {
+    // function  removeMember (address currentMember) onlyWhitelisted public returns(bool)  {
+    function  removeMember (address currentMember) public returns(bool)  {
         Member storage member = members[currentMember];
        
         //? change to .exits == true ?
@@ -620,7 +623,8 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
        * Number of members = total amount authorized as dividend overall
 
     */
-    function declareDividend (uint256 amountPerShare)  onlyWhitelisted public  {
+    // function declareDividend (uint256 amountPerShare)  onlyWhitelisted public  {
+    function declareDividend (uint256 amountPerShare)  public  {
    
          uint256 totalAvailable = getTotalAvailable();
         //total of all dividends can not exceed total contributions - withdrawals
@@ -685,7 +689,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
     }
 
     function getCurrentPeriod() public view returns (uint256) {
-        return now.sub(summoningTime).div(periodDuration);
+        return block.timestamp.sub(summoningTime).div(periodDuration);
     }
 
     //return list of all member addressess. 
@@ -698,19 +702,19 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
     }
     //some details for proposal
     function getProposalDetails(uint256  index ) public view returns(address proposer,address applicant, uint256 fundsRequested, uint tributeAmount, IERC20 tributeAddress, bool passed){
-        require(index < ProposalQueue.length, "Moloch::getProposalDetails - proposal doesn't exist");
+        require(index < numProposal, "Moloch::getProposalDetails - proposal doesn't exist");
         return (ProposalQueue[index].proposer,ProposalQueue[index].applicant, ProposalQueue[index].fundsRequested,ProposalQueue[index].tributeAmount,
         ProposalQueue[index].tributeToken, ProposalQueue[index].didPass);
     }
   
 
     function getProposalQueueLength() public view returns (uint256) {
-        return ProposalQueue.length;
+        return numProposal;
     }
     
     // can only ragequit if the latest proposal you voted YES on has been processed
     function canRageQuit(uint256 highestIndexYesVote) public view returns (bool) {
-        require(highestIndexYesVote < ProposalQueue.length, "Moloch::canRageQuit - proposal does not exist");
+        require(highestIndexYesVote < numProposal, "Moloch::canRageQuit - proposal does not exist");
         return ProposalQueue[highestIndexYesVote].processed;
     }
 
@@ -720,7 +724,7 @@ contract VentureMoloch is Ownable,WhitelistAdminRole, WhitelistedRole {
 
     function getProposalVote(address memberAddress, uint256 proposalIndex) public view returns (Vote) {
         require(members[memberAddress].exists, "Moloch::getProposalVote - member doesn't exist");
-        require(proposalIndex < ProposalQueue.length, "Moloch::getProposalVote - proposal doesn't exist");
+        require(proposalIndex < numProposal, "Moloch::getProposalVote - proposal doesn't exist");
         return ProposalQueue[proposalIndex].votesByMember[memberAddress];
     }
     //get GuildBank balance for an equity token

@@ -1,6 +1,8 @@
-pragma solidity 0.5.3;
+pragma solidity ^0.8.2;
 
 import "./oz/Ownable.sol";
+import "./oz/SafeMath.sol";
+import "./oz/IERC20.sol";
 
 contract GuildBank is Ownable {
 	using SafeMath for uint256;

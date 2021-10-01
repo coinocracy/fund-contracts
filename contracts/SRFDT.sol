@@ -1,5 +1,4 @@
-pragma solidity ^0.5.2;
-
+pragma solidity ^0.8.2;
 /**
  * @dev Wrappers over Solidity's arithmetic operations with added overflow
  * checks.
@@ -165,14 +164,14 @@ library SafeMath {
  *
  * This contract is only required for intermediate, library-like contracts.
  */
-contract Context {
+abstract contract Context {
     // Empty internal constructor, to prevent people from mistakenly deploying
     // an instance of this contract, which should be used via inheritance.
     constructor () internal { }
     // solhint-disable-previous-line no-empty-blocks
 
     function _msgSender() internal view returns (address payable) {
-        return msg.sender;
+        return payable(msg.sender);
     }
 
     function _msgData() internal view returns (bytes memory) {
@@ -198,7 +197,7 @@ contract Ownable is Context {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor () internal {
+    constructor () {
         address msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
@@ -553,14 +552,14 @@ contract ERC20 is Context, IERC20 {
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public view returns (uint256) {
+    function totalSupply() public view override returns (uint256) {
         return _totalSupply;
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public view returns (uint256) {
+    function balanceOf(address account) public view override returns (uint256) {
         return _balances[account];
     }
 
@@ -572,7 +571,7 @@ contract ERC20 is Context, IERC20 {
      * - `recipient` cannot be the zero address.
      * - the caller must have a balance of at least `amount`.
      */
-    function transfer(address recipient, uint256 amount) public returns (bool) {
+    function transfer(address recipient, uint256 amount) public override returns (bool) {
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
@@ -580,7 +579,7 @@ contract ERC20 is Context, IERC20 {
     /**
      * @dev See {IERC20-allowance}.
      */
-    function allowance(address owner, address spender) public view returns (uint256) {
+    function allowance(address owner, address spender) public view override returns (uint256) {
         return _allowances[owner][spender];
     }
 
@@ -591,7 +590,7 @@ contract ERC20 is Context, IERC20 {
      *
      * - `spender` cannot be the zero address.
      */
-    function approve(address spender, uint256 amount) public returns (bool) {
+    function approve(address spender, uint256 amount) public override returns (bool) {
         _approve(_msgSender(), spender, amount);
         return true;
     }
@@ -608,7 +607,7 @@ contract ERC20 is Context, IERC20 {
      * - the caller must have allowance for `sender`'s tokens of at least
      * `amount`.
      */
-    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
         _transfer(sender, recipient, amount);
         _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
         return true;
@@ -664,7 +663,7 @@ contract ERC20 is Context, IERC20 {
      * - `recipient` cannot be the zero address.
      * - `sender` must have a balance of at least `amount`.
      */
-    function _transfer(address sender, address recipient, uint256 amount) internal {
+    function _transfer(address sender, address recipient, uint256 amount) virtual internal {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
 
@@ -682,7 +681,7 @@ contract ERC20 is Context, IERC20 {
      *
      * - `to` cannot be the zero address.
      */
-    function _mint(address account, uint256 amount) internal {
+    function _mint(address account, uint256 amount) virtual internal {
         require(account != address(0), "ERC20: mint to the zero address");
 
         _totalSupply = _totalSupply.add(amount);
@@ -701,7 +700,7 @@ contract ERC20 is Context, IERC20 {
      * - `account` cannot be the zero address.
      * - `account` must have at least `amount` tokens.
      */
-    function _burn(address account, uint256 amount) internal {
+    function _burn(address account, uint256 amount) virtual internal {
         require(account != address(0), "ERC20: burn from the zero address");
 
         _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
@@ -742,20 +741,20 @@ contract ERC20 is Context, IERC20 {
     }
 }
 
-contract ERC1404 is IERC20 {
+abstract contract ERC1404 is IERC20 {
     /// @notice Detects if a transfer will be reverted and if so returns an appropriate reference code
     /// @param from Sending address
     /// @param to Receiving address
     /// @param value Amount of tokens being transferred
     /// @return Code by which to reference message for rejection reasoning
     /// @dev Overwrite with your custom transfer restriction logic
-    function detectTransferRestriction (address from, address to, uint256 value) public view returns (uint8);
+    function detectTransferRestriction (address from, address to, uint256 value) public view virtual returns (uint8);
 
     /// @notice Returns a human-readable message for a given restriction code
     /// @param restrictionCode Identifier for looking up a message
     /// @return Text showing the restriction's reasoning
     /// @dev Overwrite with your custom message and restrictionCode handling
-    function messageForTransferRestriction (uint8 restrictionCode) public view returns (string memory);
+    function messageForTransferRestriction (uint8 restrictionCode) public view virtual returns (string memory);
 }
 
 /**
@@ -845,7 +844,7 @@ interface IFundsDistributionToken {
 /**
  * @dev Optional functions from the ERC20 standard.
  */
-contract ERC20Detailed is IERC20 {
+abstract contract ERC20Detailed is IERC20 {
     string private _name;
     string private _symbol;
     uint8 private _decimals;
@@ -855,7 +854,7 @@ contract ERC20Detailed is IERC20 {
      * these values are immutable: they can only be set once during
      * construction.
      */
-    constructor (string memory name, string memory symbol, uint8 decimals) public {
+    constructor (string memory name, string memory symbol, uint8 decimals) {
         _name = name;
         _symbol = symbol;
         _decimals = decimals;
@@ -996,7 +995,7 @@ contract ERC20Mintable is ERC20, MinterRole {
  * FundsDistributionToken (FDT) implements the accounting logic. FDT-Extension contracts implement methods for depositing and 
  * withdrawing funds in Ether or according to a token standard such as ERC20, ERC223, ERC777.
  */
-contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20Mintable {
+abstract contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20Mintable {
 
 	using SafeMath for uint256;
 	using SafeMathUint for uint256;
@@ -1014,7 +1013,7 @@ contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20
 		string memory name, 
 		string memory symbol
 	) 
-		public 
+		 
 		ERC20Detailed(name, symbol, 18) 
 	{}
 
@@ -1063,7 +1062,7 @@ contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20
 	 * @param _owner The address of a token holder.
 	 * @return The amount funds that `_owner` can withdraw.
 	 */
-	function withdrawableFundsOf(address _owner) public view returns(uint256) {
+	function withdrawableFundsOf(address _owner) public view override returns(uint256) {
 		return accumulativeFundsOf(_owner).sub(withdrawnFunds[_owner]);
 	}
 
@@ -1097,7 +1096,7 @@ contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20
 	 * @param to The address to transfer to.
 	 * @param value The amount to be transferred.
 	 */
-	function _transfer(address from, address to, uint256 value) internal {
+	function _transfer(address from, address to, uint256 value) override internal {
 		super._transfer(from, to, value);
 
 		int256 _magCorrection = pointsPerShare.mul(value).toInt256Safe();
@@ -1111,7 +1110,7 @@ contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20
 	 * @param account The account that will receive the created tokens.
 	 * @param value The amount that will be created.
 	 */
-	function _mint(address account, uint256 value) internal {
+	function _mint(address account, uint256 value) override internal {
 		super._mint(account, value);
 
 		pointsCorrection[account] = pointsCorrection[account]
@@ -1124,7 +1123,7 @@ contract FundsDistributionToken is IFundsDistributionToken, ERC20Detailed, ERC20
 	 * @param account The account whose tokens will be burnt.
 	 * @param value The amount that will be burnt.
 	 */
-	function _burn(address account, uint256 value) internal {
+	function _burn(address account, uint256 value) override internal {
 		super._burn(account, value);
 
 		pointsCorrection[account] = pointsCorrection[account]
@@ -1180,6 +1179,7 @@ contract SimpleRestrictedFDT is FundsDistributionToken, ERC1404, Whitelistable, 
   	function detectTransferRestriction (address from, address to, uint256)
       		public
       		view
+            override
       		returns (uint8)
     	{               
       		// If the restrictions have been disabled by the owner, then just return success
@@ -1211,6 +1211,7 @@ contract SimpleRestrictedFDT is FundsDistributionToken, ERC1404, Whitelistable, 
   	function messageForTransferRestriction (uint8 restrictionCode)
       		public
       		view
+            override
       		returns (string memory)
     	{
       		if (restrictionCode == SUCCESS_CODE) {
@@ -1240,6 +1241,7 @@ contract SimpleRestrictedFDT is FundsDistributionToken, ERC1404, Whitelistable, 
   	function transfer (address to, uint256 value)
       		public
       		notRestricted(msg.sender, to, value)
+            override
       		returns (bool success)
     	{
       		success = super.transfer(to, value);
@@ -1251,6 +1253,7 @@ contract SimpleRestrictedFDT is FundsDistributionToken, ERC1404, Whitelistable, 
   	function transferFrom (address from, address to, uint256 value)
       		public
       		notRestricted(from, to, value)
+            override
       		returns (bool success)
     	{
       		success = super.transferFrom(from, to, value);
@@ -1259,7 +1262,7 @@ contract SimpleRestrictedFDT is FundsDistributionToken, ERC1404, Whitelistable, 
 	/**
 	 * @notice Withdraws all available funds for a token holder
 	 */
-	function withdrawFunds() 
+	function withdrawFunds() override
 		external 
 	{
 		uint256 withdrawableFunds = _prepareWithdraw();

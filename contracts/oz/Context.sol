@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.8.2;
 
 /*
  * @dev Provides information about the current execution context, including the
@@ -10,7 +10,7 @@ pragma solidity ^0.5.0;
  *
  * This contract is only required for intermediate, library-like contracts.
  */
-contract Context {
+abstract contract Context {
     // Empty internal constructor, to prevent people from mistakenly deploying
     // an instance of this contract, which should be used via inheritance.
     constructor () internal { }

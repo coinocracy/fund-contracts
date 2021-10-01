@@ -1,4 +1,4 @@
-pragma solidity 0.5.3;
+pragma solidity ^0.8.2;
 
 // WIP - please make comments through PRs!
 
@@ -251,7 +251,7 @@ interface IERC20 {
 contract Context {
 	// Empty internal constructor, to prevent people from mistakenly deploying
 	// an instance of this contract, which should be used via inheritance.
-	constructor () internal { }
+	constructor () { }
 	// solhint-disable-previous-line no-empty-blocks
 
 	function _msgSender() internal view returns (address) {
@@ -281,7 +281,7 @@ contract Ownable is Context {
 	/**
  	* @dev Initializes the contract setting the deployer as the initial owner.
  	*/
-	constructor () internal {
+	constructor (){
     		_owner = _msgSender();
     		emit OwnershipTransferred(address(0), _owner);
 	}
@@ -470,7 +470,8 @@ contract VentureMolochLAO { // vmLAO
 
     mapping (address => Member) public members;
     mapping (address => address) public memberAddressByDelegateKey;
-    Proposal[] public ProposalQueue;
+	mapping (uint => Proposal) public ProposalQueue;
+	uint public numProposal;
 
     /********
     MODIFIERS
@@ -523,7 +524,7 @@ contract VentureMolochLAO { // vmLAO
 	proposalDeposit = _proposalDeposit;
 	processingReward = proposalDeposit.mul(decimalFactor).div(100);
 
-   	summoningTime = now;
+   	summoningTime = block.timestamp;
 
    	members[summoner] = Member(summoner, 0, true, 0);
    	memberAddressByDelegateKey[summoner] = summoner;
@@ -587,30 +588,26 @@ contract VentureMolochLAO { // vmLAO
    	// compute startingPeriod for proposal
    	uint256 startingPeriod = max(
 		getCurrentPeriod(),
-        	ProposalQueue.length == 0 ? 0 : ProposalQueue[ProposalQueue.length.sub(1)].startingPeriod
+        	numProposal == 0 ? 0 : ProposalQueue[numProposal.sub(1)].startingPeriod
    	        ).add(1);
 
    	// create proposal ...
-   	Proposal memory proposal = Proposal({
-        	proposer: memberAddress,
-        	applicant: applicant,
-        	tributeAmount: tribute,
-        	tributeToken: tributeToken,
-        	fundsRequested: funds,
-		fundingToken: fundingToken,
-        	details: details,
-        	startingPeriod: startingPeriod,
-        	yesVotes: 0,
-        	noVotes: 0,
-   		processed: false,
-   		didPass: false,
-   		aborted: false
-   	    });
+	Proposal storage proposal = ProposalQueue[numProposal ++];
+	proposal.proposer = memberAddress;
+	proposal.applicant = applicant;
+	proposal.tributeAmount = tribute;
+	proposal.tributeToken = tributeToken;
+	proposal.fundsRequested = funds;
+	proposal.fundingToken = fundingToken;
+	proposal.details = details;
+	proposal.startingPeriod = startingPeriod;
+	proposal.yesVotes = 0;
+	proposal.noVotes = 0;
+	proposal.processed = false;
+	proposal.didPass = false;
+	proposal.aborted = false;
 
-   	// ... and append it to the queue
-   	ProposalQueue.push(proposal);
-
-   	uint256 proposalIndex = ProposalQueue.length.sub(1);
+   	uint256 proposalIndex = numProposal.sub(1);
    	    
    	emit SubmitProposal(
    	 	 proposalIndex,
@@ -628,7 +625,7 @@ contract VentureMolochLAO { // vmLAO
     	address memberAddress = memberAddressByDelegateKey[msg.sender];
    	Member storage member = members[memberAddress];
 
-   	require(proposalIndex < ProposalQueue.length, "Moloch::submitVote - proposal does not exist");
+   	require(proposalIndex < numProposal, "Moloch::submitVote - proposal does not exist");
    	Proposal storage proposal = ProposalQueue[proposalIndex];
 
    	require(uintVote < 3, "Moloch::submitVote - uintVote must be less than 3");
@@ -660,7 +657,7 @@ contract VentureMolochLAO { // vmLAO
     }
 
     function processProposal(uint256 proposalIndex) public {
-    	require(proposalIndex < ProposalQueue.length, "Moloch::processProposal - proposal does not exist");
+    	require(proposalIndex < numProposal, "Moloch::processProposal - proposal does not exist");
    	Proposal storage proposal = ProposalQueue[proposalIndex];
 
    	require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength),"Moloch::processProposal - proposal is not ready to be processed");
@@ -735,7 +732,7 @@ contract VentureMolochLAO { // vmLAO
     	Any tribute escrowed in Moloch will then be returned to the applicant.
     */
     function abortProposal(uint256 proposalIndex) public {
-    	require(proposalIndex < ProposalQueue.length, "Moloch::abort - proposal does not exist");
+    	require(proposalIndex < numProposal, "Moloch::abort - proposal does not exist");
    	Proposal storage proposal = ProposalQueue[proposalIndex];
 
    	require(msg.sender == proposal.applicant, "Moloch::abort - msg.sender must be applicant");
@@ -782,16 +779,16 @@ contract VentureMolochLAO { // vmLAO
     }
 
     function getCurrentPeriod() public view returns (uint256) {
-    	return now.sub(summoningTime).div(periodDuration);
+    	return block.timestamp.sub(summoningTime).div(periodDuration);
     }
 
     function getProposalQueueLength() public view returns (uint256) {
-   	return ProposalQueue.length;
+   	return numProposal;
     }
     
     // can only ragequit if the latest proposal you voted YES on has been processed
     function canRagequit(uint256 highestIndexYesVote) public view returns (bool) {
-   	require(highestIndexYesVote < ProposalQueue.length, "Moloch::canRagequit - proposal does not exist");
+   	require(highestIndexYesVote < numProposal, "Moloch::canRagequit - proposal does not exist");
    	return ProposalQueue[highestIndexYesVote].processed;
     }
 
@@ -801,7 +798,7 @@ contract VentureMolochLAO { // vmLAO
 
     function getProposalVote(address memberAddress, uint256 proposalIndex) public view returns (Vote) {
    	require(members[memberAddress].exists, "Moloch::getProposalVote - member doesn't exist");
-   	require(proposalIndex < ProposalQueue.length, "Moloch::getProposalVote - proposal doesn't exist");
+   	require(proposalIndex < numProposal, "Moloch::getProposalVote - proposal doesn't exist");
    	return ProposalQueue[proposalIndex].votesByMember[memberAddress];
     }
 }
