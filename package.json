@@ -41,6 +41,8 @@
         "ethers": "5.4.5",
         "hardhat": "2.6.0",
         "hardhat-deploy": "0.8.11",
+        "hardhat-docgen": "1.1.1",
+        "hardhat-tracer": "^1.0.0-alpha.6",
         "mocha-skip-if": "0.0.3",
         "prettier": "2.3.2",
         "prettier-plugin-solidity": "1.0.0-beta.17",

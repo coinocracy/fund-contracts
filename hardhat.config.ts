@@ -8,6 +8,7 @@ import "@nomiclabs/hardhat-solhint";
 import "@typechain/hardhat";
 import "dotenv/config";
 import "hardhat-deploy";
+import "hardhat-docgen";
 import "solidity-coverage";
 
 import "./tasks/accounts";
@@ -90,4 +91,9 @@ module.exports = {
     mocha: {
         timeout: 100000,
     },
+    docgen: {
+        path: './docs',
+        clear: true,
+        runOnCompile: true,
+    }
 };

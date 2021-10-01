@@ -1,8 +1,6 @@
-![Img](header.png)
+# Fund Contracts
 
-# TypeScript Solidity Boilerplate Starter Kit
-
-A BoilerPlate Template Project To Start Solidity Development With Hardhat and Typescript. All you have to do is create a new repository from the template and start coding your smartcontracts. 
+Standardized factory for spinning up funds
 
 ## Hardhat Configuration
 
@@ -38,5 +36,3 @@ Check `package.json` scripts for more options.
 Use `.env.example` file and adapt it to you values and settings.
 
 Have Fun!
-
-Test
