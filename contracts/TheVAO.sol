@@ -94,14 +94,23 @@ contract VentureMoloch is Ownable {
             string details,
             bool didPass);
     event Ragequit(address indexed memberAddress);
+
+    /// @notice Abort a proposal
+    /// @param proposalIndex the index of the proposal in proposal queue
+    /// @param applicantAddress address of the applicant who would receive proposal funds (must be msg.sender)
     event Abort(uint256 indexed proposalIndex, address applicantAddress);
+
     event UpdateDelegateKey(address indexed memberAddress, address newDelegateKey);
     //event SummonComplete(address indexed summoner, uint256 shares);
     event MemberAdded(address indexed _newMemberAddress, uint256 _sharesRequested, uint256 _tributeAmount);
-   event  DividendDeclared(uint256 indexed amountPerShare);
-   event DividendWithdrawn(address indexed memberAddress, uint256 indexed amount);
-   event ProposalFunded(uint256 proposalIndex, address applicant, uint256 amountFunded);
-   event Deposit(address indexed depositor, uint256 indexed amount);
+    event  DividendDeclared(uint256 indexed amountPerShare);
+    event DividendWithdrawn(address indexed memberAddress, uint256 indexed amount);
+    event ProposalFunded(uint256 proposalIndex, address applicant, uint256 amountFunded);
+
+    /// @notice Deposit funds into the Guild Bank (from a sale of a prortfolio company for example)
+    /// @param depositor msg.sender of the deposit
+    /// @param amount amount (in WEI format) that has been deposited. Uses the contribution token as deposit
+    event Deposit(address indexed depositor, uint256 indexed amount);
 
     /******************
     INTERNAL ACCOUNTING
@@ -192,6 +201,13 @@ contract VentureMoloch is Ownable {
     /********
     FUNCTIONS
     ********/
+    /// @notice Constructor for creating a new VAO. Initiates a new token representing "shares" of the VAO, as well as a bank to hold the tokens that members submit to enter the VAO
+    /// @param _contributionToken Token address used to fund ventures and distribute dividends. Must be ERC20
+    /// @param _periodDuration Used to break down time into discrete units, meant to make other time blocks easier to understand. Will usually default to 4.8 hours (in seconds)
+    /// @param _votingPeriodLength Length of voting period for proposals (in periods). Default to 35 periods
+    /// @param _gracePeriodLength Failsafe mechanism after voting period in case there needs to be an admin revert. Default to 35 periods
+    /// @param _abortWindow Time period given for applicant to abort the proposal. Default to 5 periods
+    /// @param _dilutionBound Multiplier to provide a backstop in case there is a mass ragequit. Defaults to 3
     constructor(
         //address _summoner,
         address _contributionToken,
@@ -200,7 +216,7 @@ contract VentureMoloch is Ownable {
         uint256 _gracePeriodLength,
         uint256 _abortWindow,
         uint256 _dilutionBound
-    ) public {
+    ) {
         //require(_summoner != address(0), "Moloch::constructor - summoner cannot be 0");
         require(_contributionToken != address(0), "Moloch::constructor - _contributionToken cannot be 0");
         require(_periodDuration > 0, "Moloch::constructor - _periodDuration cannot be 0");
@@ -208,7 +224,7 @@ contract VentureMoloch is Ownable {
         require(_votingPeriodLength <= MAX_VOTING_PERIOD_LENGTH, "Moloch::constructor - _votingPeriodLength exceeds limit");
         require(_gracePeriodLength <= MAX_GRACE_PERIOD_LENGTH, "Moloch::constructor - _gracePeriodLength exceeds limit");
         require(_abortWindow > 0, "Moloch::constructor - _abortWindow cannot be 0");
-        require(_abortWindow <= _votingPeriodLength, "Moloch::constructor - _abortWindow must be smaller than or equal to _votingPeriodLength");
+        require(_abortWindow <= _votingPeriodLength, "Moloch::constructor - _abortWindow > _votingPeriodLength");
         require(_dilutionBound > 0, "Moloch::constructor - _dilutionBound cannot be 0");
         require(_dilutionBound <= MAX_DILUTION_BOUND, "Moloch::constructor - _dilutionBound exceeds limit");
         
@@ -391,10 +407,8 @@ contract VentureMoloch is Ownable {
     function fundApprovedProposal(uint index) public 
      {
         Proposal storage proposal = ProposalQueue[index];
-        //proposal must have passed
-        require ( proposal.flags.didPass == true); 
-        //proposal must not have been already funded.  to proposal struc "fundsTransfered"
-        require (proposal.flags.fundsTransferred == false); 
+        require ( proposal.flags.didPass == true, "proposal must have passed"); 
+        require (proposal.flags.fundsTransferred == false, "proposal must not have been already funded"); 
 
         // update total guild bank withdrawal tally to reflect requested funds disbursement 
         totalWithdrawals = totalWithdrawals.add(proposal.fundsRequested);
@@ -504,7 +518,7 @@ contract VentureMoloch is Ownable {
     // Extension to original Moloch Code: Summoner withdraws and administers tribute tokens (but not member contributions or dividends)
     // function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) onlyWhitelisted public returns (bool)  {
     function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) public returns (bool)  {
-        require(assetToken != contributionToken); 
+        require(assetToken != contributionToken, "!contributions||dividends"); 
         return guildBank.adminWithdrawAsset(assetToken, receiver, amount);
     }
 
@@ -638,12 +652,10 @@ contract VentureMoloch is Ownable {
     }
    
 
-    /*
-        @dev deposit for contribution token --e.g. from sale of a company
-         - only adds to 'totalContributed', so it wont be used in any fair share calculations. 
-         - need to pre approve VM contract address. -- fix
-         @param amount = amount in Wei format of the Contribution Token 
-    */
+    /// @dev deposit for contribution token --e.g. from sale of a company
+    /// @notice - only adds to 'totalContributed', so it wont be used in any fair share calculations.
+    /// @notice - need to pre approve VM contract address. -- fix
+    /// @param amount = amount in Wei format of the Contribution Token
     function deposit (uint256 amount) public returns(bool) {
         //add to totalContributed
         totalContributed = totalContributed.add(amount);
@@ -652,7 +664,6 @@ contract VentureMoloch is Ownable {
 
         //TEST this -- may not need pre-approval??
         //require (IERC20.transfer(address(guildBank), amount));
-        
     }
     
     /***************
