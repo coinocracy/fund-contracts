@@ -450,7 +450,11 @@ contract VentureMolochLAO { // vmLAO
 		bool exists; // always true once a member has been created
 		uint256 highestIndexYesVote; // highest proposal index # on which the member voted YES
     }
-    
+    struct ProposalFlags {
+		bool processed; // true only if the proposal has been processed
+		bool didPass; // true only if the proposal passed
+		bool aborted; // true only if applicant calls "abort" before end of voting period
+	}
     struct Proposal {
 		address proposer; // the member who submitted the proposal
 		address applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
@@ -462,9 +466,7 @@ contract VentureMolochLAO { // vmLAO
 		uint256 startingPeriod; // the period in which voting can start for this proposal
 		uint256 yesVotes; // the total number of YES votes for this proposal
 		uint256 noVotes; // the total number of NO votes for this proposal
-		bool processed; // true only if the proposal has been processed
-		bool didPass; // true only if the proposal passed
-		bool aborted; // true only if applicant calls "abort" before end of voting period
+		ProposalFlags flags; // pack to struct to avoid stack deep error
 		mapping (address => Vote) votesByMember; // the votes on this proposal by each member
     }
 
@@ -603,9 +605,9 @@ contract VentureMolochLAO { // vmLAO
 	proposal.startingPeriod = startingPeriod;
 	proposal.yesVotes = 0;
 	proposal.noVotes = 0;
-	proposal.processed = false;
-	proposal.didPass = false;
-	proposal.aborted = false;
+	proposal.flags.processed = false;
+	proposal.flags.didPass = false;
+	proposal.flags.aborted = false;
 
    	uint256 proposalIndex = numProposal.sub(1);
    	    
@@ -635,7 +637,7 @@ contract VentureMolochLAO { // vmLAO
    	require(!hasVotingPeriodExpired(proposal.startingPeriod), "Moloch::submitVote - proposal voting period has expired");
    	require(proposal.votesByMember[memberAddress] == Vote.Null, "Moloch::submitVote - member has already voted on this proposal");
    	require(vote == Vote.Yes || vote == Vote.No, "Moloch::submitVote - vote must be either Yes or No");
-   	require(!proposal.aborted, "Moloch::submitVote - proposal has been aborted");
+   	require(!proposal.flags.aborted, "Moloch::submitVote - proposal has been aborted");
 
    	// store vote
    	proposal.votesByMember[memberAddress] = vote;
@@ -661,17 +663,17 @@ contract VentureMolochLAO { // vmLAO
    	Proposal storage proposal = ProposalQueue[proposalIndex];
 
    	require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength),"Moloch::processProposal - proposal is not ready to be processed");
-   	require(proposal.processed == false, "Moloch::processProposal - proposal has already been processed");
-   	require(proposalIndex == 0 || ProposalQueue[proposalIndex.sub(1)].processed, "Moloch::processProposal - previous proposal must be processed");
+   	require(proposal.flags.processed == false, "Moloch::processProposal - proposal has already been processed");
+   	require(proposalIndex == 0 || ProposalQueue[proposalIndex.sub(1)].flags.processed, "Moloch::processProposal - previous proposal must be processed");
 
-   	proposal.processed = true;
+   	proposal.flags.processed = true;
    	totalFundsRequested = totalFundsRequested.sub(proposal.fundsRequested);
    	 
    	bool didPass = proposal.yesVotes > proposal.noVotes;
 
    	// PROPOSAL PASSED
-   	if (didPass && !proposal.aborted) {
-		proposal.didPass = true;
+   	if (didPass && !proposal.flags.aborted) {
+		proposal.flags.didPass = true;
 			 
    	// transfer token tribute to guild bank
    	require(proposal.tributeToken.transfer(address(guildBank), proposal.tributeAmount.mul(decimalFactor)),
@@ -737,11 +739,11 @@ contract VentureMolochLAO { // vmLAO
 
    	require(msg.sender == proposal.applicant, "Moloch::abort - msg.sender must be applicant");
    	require(getCurrentPeriod() < proposal.startingPeriod.add(abortWindow), "Moloch::abort - abort window must not have passed");
-   	require(!proposal.aborted, "Moloch::abort - proposal must not have already been aborted");
+   	require(!proposal.flags.aborted, "Moloch::abort - proposal must not have already been aborted");
 
    	uint256 tokensToAbort = proposal.tributeAmount;
    	proposal.tributeAmount = 0;
-   	proposal.aborted = true;
+   	proposal.flags.aborted = true;
 
    	// return all tribute tokens to the applicant
    	require(proposal.tributeToken.transfer(proposal.applicant, tokensToAbort.mul(decimalFactor)),
@@ -789,7 +791,7 @@ contract VentureMolochLAO { // vmLAO
     // can only ragequit if the latest proposal you voted YES on has been processed
     function canRagequit(uint256 highestIndexYesVote) public view returns (bool) {
    	require(highestIndexYesVote < numProposal, "Moloch::canRagequit - proposal does not exist");
-   	return ProposalQueue[highestIndexYesVote].processed;
+   	return ProposalQueue[highestIndexYesVote].flags.processed;
     }
 
     function hasVotingPeriodExpired(uint256 startingPeriod) public view returns (bool) {

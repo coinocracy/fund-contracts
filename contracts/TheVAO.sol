@@ -139,6 +139,14 @@ contract VentureMoloch is Ownable {
         -uint256 fundsRequested
         TODO: remove sharesREquested? 
     */
+
+    struct ProPosalFlags{
+        bool processed; // true only if the proposal has been processed
+        bool didPass; // true only if the proposal passed
+        bool fundsTransferred;
+        bool aborted; // true only if applicant calls "abort" before end of voting period
+    }
+
     struct Proposal {
         address proposer; // the member who submitted the proposal
         address applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
@@ -150,10 +158,7 @@ contract VentureMoloch is Ownable {
         uint256 startingPeriod; // the period in which voting can start for this proposal
         uint256 yesVotes; // the total number of YES votes for this proposal
         uint256 noVotes; // the total number of NO votes for this proposal
-        bool processed; // true only if the proposal has been processed
-        bool didPass; // true only if the proposal passed
-        bool fundsTransferred;
-        bool aborted; // true only if applicant calls "abort" before end of voting period
+        ProPosalFlags flags; // pack to struct to avoid `Stack Too Deep` Error
         uint256 maxTotalSharesAtYesVote; // the maximum # of total shares encountered at a yes vote on this proposal
         mapping (address => Vote) votesByMember; // the votes on this proposal by each member
     }
@@ -271,10 +276,10 @@ contract VentureMoloch is Ownable {
         proposal.startingPeriod = startingPeriod;
         proposal.yesVotes = 0;
         proposal.noVotes = 0;
-        proposal.processed = false;
-        proposal.didPass = false;
-        proposal.fundsTransferred = false;
-        proposal.aborted = false;
+        proposal.flags.processed = false;
+        proposal.flags.didPass = false;
+        proposal.flags.fundsTransferred = false;
+        proposal.flags.aborted = false;
         proposal.maxTotalSharesAtYesVote = 0;
 
         uint256 proposalIndex = numProposal.sub(1);
@@ -304,7 +309,7 @@ contract VentureMoloch is Ownable {
         require(!hasVotingPeriodExpired(proposal.startingPeriod), "Moloch::submitVote - proposal voting period has expired");
         require(proposal.votesByMember[memberAddress] == Vote.Null, "Moloch::submitVote - member has already voted on this proposal");
         require(vote == Vote.Yes || vote == Vote.No, "Moloch::submitVote - vote must be either Yes or No");
-        require(!proposal.aborted, "Moloch::submitVote - proposal has been aborted");
+        require(!proposal.flags.aborted, "Moloch::submitVote - proposal has been aborted");
 
         // store vote
         proposal.votesByMember[memberAddress] = vote;
@@ -335,10 +340,10 @@ contract VentureMoloch is Ownable {
         Proposal storage proposal = ProposalQueue[proposalIndex];
 
         require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength),"Moloch::processProposal - proposal is not ready to be processed");
-        require(proposal.processed == false, "Moloch::processProposal - proposal has already been processed");
-        require(proposalIndex == 0 || ProposalQueue[proposalIndex.sub(1)].processed, "Moloch::processProposal - previous proposal must be processed");
+        require(proposal.flags.processed == false, "Moloch::processProposal - proposal has already been processed");
+        require(proposalIndex == 0 || ProposalQueue[proposalIndex.sub(1)].flags.processed, "Moloch::processProposal - previous proposal must be processed");
 
-        proposal.processed = true;
+        proposal.flags.processed = true;
         //totalSharesRequested = totalSharesRequested.sub(proposal.sharesRequested);
         
         bool didPass = proposal.yesVotes > proposal.noVotes;
@@ -349,9 +354,9 @@ contract VentureMoloch is Ownable {
         }
 
         // PROPOSAL PASSED
-        if (didPass && !proposal.aborted) {
+        if (didPass && !proposal.flags.aborted) {
 
-            proposal.didPass = true;
+            proposal.flags.didPass = true;
         } 
 
 
@@ -387,9 +392,9 @@ contract VentureMoloch is Ownable {
      {
         Proposal storage proposal = ProposalQueue[index];
         //proposal must have passed
-        require ( proposal.didPass == true); 
+        require ( proposal.flags.didPass == true); 
         //proposal must not have been already funded.  to proposal struc "fundsTransfered"
-        require (proposal.fundsTransferred == false); 
+        require (proposal.flags.fundsTransferred == false); 
 
         // update total guild bank withdrawal tally to reflect requested funds disbursement 
         totalWithdrawals = totalWithdrawals.add(proposal.fundsRequested);
@@ -410,7 +415,7 @@ contract VentureMoloch is Ownable {
                 "Moloch::fundApprovedProposal - equity token transfer to guild bank failed"
             );
 
-       proposal.fundsTransferred = true; 
+       proposal.flags.fundsTransferred = true; 
        emit ProposalFunded(index, proposal.applicant, proposal.fundsRequested);
        //emit Proposal Funded - index no, proposal.applicant, fundsTransferred, 
     } 
@@ -462,11 +467,11 @@ contract VentureMoloch is Ownable {
 
         require(msg.sender == proposal.applicant, "Moloch::abort - msg.sender must be applicant");
         require(getCurrentPeriod() < proposal.startingPeriod.add(abortWindow), "Moloch::abort - abort window must not have passed");
-        require(!proposal.aborted, "Moloch::abort - proposal must not have already been aborted");
+        require(!proposal.flags.aborted, "Moloch::abort - proposal must not have already been aborted");
 
         uint256 tokensToAbort = proposal.tributeAmount;
         proposal.tributeAmount = 0;
-        proposal.aborted = true;
+        proposal.flags.aborted = true;
 
         // return all tribute tokens to the applicant
         require(
@@ -673,7 +678,7 @@ contract VentureMoloch is Ownable {
     function getProposalDetails(uint256  index ) public view returns(address proposer,address applicant, uint256 fundsRequested, uint tributeAmount, IERC20 tributeAddress, bool passed){
         require(index < numProposal, "Moloch::getProposalDetails - proposal doesn't exist");
         return (ProposalQueue[index].proposer,ProposalQueue[index].applicant, ProposalQueue[index].fundsRequested,ProposalQueue[index].tributeAmount,
-        ProposalQueue[index].tributeToken, ProposalQueue[index].didPass);
+        ProposalQueue[index].tributeToken, ProposalQueue[index].flags.didPass);
     }
   
 
@@ -684,7 +689,7 @@ contract VentureMoloch is Ownable {
     // can only ragequit if the latest proposal you voted YES on has been processed
     function canRageQuit(uint256 highestIndexYesVote) public view returns (bool) {
         require(highestIndexYesVote < numProposal, "Moloch::canRageQuit - proposal does not exist");
-        return ProposalQueue[highestIndexYesVote].processed;
+        return ProposalQueue[highestIndexYesVote].flags.processed;
     }
 
     function hasVotingPeriodExpired(uint256 startingPeriod) public view returns (bool) {
