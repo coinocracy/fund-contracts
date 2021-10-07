@@ -380,10 +380,8 @@ contract VentureMoloch is Ownable, AccessControl {
 
         // PROPOSAL PASSED
         if (didPass && !proposal.flags.aborted) {
-
             proposal.flags.didPass = true;
         } 
-
 
         else {
             // return all tribute tokens to the applicant
@@ -421,21 +419,21 @@ contract VentureMoloch is Ownable, AccessControl {
         // update total guild bank withdrawal tally to reflect requested funds disbursement 
         totalWithdrawals = totalWithdrawals.add(proposal.fundsRequested);
         //mapping equity address to amount of tokens 
-       // equityHoldings[proposal.tributeToken] = proposal.tributeAmount;
-       // push IERC 20 address into array. 
+        // equityHoldings[proposal.tributeToken] = proposal.tributeAmount;
+        // push IERC 20 address into array. 
         equityHoldingsAddress.push(proposal.tributeToken);
 
         //fund the project
         require(
                 guildBank.withdraw(proposal.applicant, proposal.fundsRequested),
                 "Moloch::fundApprovedProposal - withdrawal of funding tokens from guildBank failed"
-            );
+        );
         
         //transfer the equity to guild bank
-            require(
-                proposal.tributeToken.transfer(address(guildBank), proposal.tributeAmount),
-                "Moloch::fundApprovedProposal - equity token transfer to guild bank failed"
-            );
+        require(
+            proposal.tributeToken.transfer(address(guildBank), proposal.tributeAmount),
+            "Moloch::fundApprovedProposal - equity token transfer to guild bank failed"
+        );
 
        proposal.flags.fundsTransferred = true; 
        emit ProposalFunded(index, proposal.applicant, proposal.fundsRequested);
@@ -487,13 +485,13 @@ contract VentureMoloch is Ownable, AccessControl {
     }
 
     // Extension to original Moloch Code: Summoner withdraws and administers tribute tokens (but not member contributions or dividends)
-    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) onlyWhitelisted public returns (bool)  {
+    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) public onlyWhitelisted returns (bool)  {
         require(assetToken != contributionToken, "!contributions||dividends"); 
         return guildBank.adminWithdrawAsset(assetToken, receiver, amount);
     }
 
     //@dev function to add a member without going through submit proposal process
-    function  addMember (address _newMemberAddress, uint256 _tributeAmount) onlyWhitelisted public returns(bool) { 
+    function  addMember (address _newMemberAddress, uint256 _tributeAmount) public onlyWhitelisted { 
         require(members[_newMemberAddress].exists  == false, "Moloch::member already exists");
         require(_newMemberAddress != address(0), "Moloch::addMember - applicant cannot be 0");
         //require new member address to not exist    
@@ -528,8 +526,8 @@ contract VentureMoloch is Ownable, AccessControl {
     */
     function getMemberEconomicWeight (address currentMember) internal view returns (uint256){
         Member storage member = members[currentMember];
-        uint256 X =  (member.valuePerShare.mul(decimalFactor)).div(totalValuePerShare);
-            return X; 
+        uint256 x =  (member.valuePerShare.mul(decimalFactor)).div(totalValuePerShare);
+        return x; 
     }
 
     function rageQuit() public onlyMember {
@@ -558,7 +556,7 @@ contract VentureMoloch is Ownable, AccessControl {
         //update public tallys 
         totalWithdrawals = totalWithdrawals.add(withdrawalAmount); // update total guild bank withdrawal tally to reflect raqequit amount
         totalValuePerShare = totalValuePerShare.sub(valuePerShare);  //update tally for totalValuePerShare
-      //remove member from the memberAccts array
+        //remove member from the memberAccts array
         memberAccts.pop();    
         // instruct guild bank to transfer withdrawal amount to ragequitter
         require(
@@ -570,7 +568,7 @@ contract VentureMoloch is Ownable, AccessControl {
     }
     
     // @dev forces a current member out
-    function  removeMember (address currentMember) onlyWhitelisted public returns(bool)  {
+    function removeMember (address currentMember) public onlyWhitelisted {
         Member storage member = members[currentMember];
        
         //? change to .exits == true ?
@@ -616,7 +614,7 @@ contract VentureMoloch is Ownable, AccessControl {
        * Number of members = total amount authorized as dividend overall
 
     */
-    function declareDividend (uint256 amountPerShare)  onlyWhitelisted public {
+    function declareDividend (uint256 amountPerShare) public onlyWhitelisted {
    
         uint256 totalAvailable = getTotalAvailable();
         //total of all dividends can not exceed total contributions - withdrawals
@@ -638,7 +636,7 @@ contract VentureMoloch is Ownable, AccessControl {
     }
     
 
-    //@dev - allow member to withdraw all authorized dividends. 
+    /// @dev - allow member to withdraw all authorized dividends. 
     function withdrawAuthorizedDividend () public onlyMember {
        
         uint256 memberDividend = members[msg.sender].allowedDividends;
@@ -687,7 +685,7 @@ contract VentureMoloch is Ownable, AccessControl {
     }
     //details for any member address
     function  getMemberDetails (address _member) public view returns(address, uint, bool, uint, uint) {     
-         return (members[_member].delegateKey, members[_member].shares, members[_member].exists, members[_member].tributeAmount, members[_member].highestIndexYesVote);
+        return (members[_member].delegateKey, members[_member].shares, members[_member].exists, members[_member].tributeAmount, members[_member].highestIndexYesVote);
     }
     //some details for proposal
     function getProposalDetails(uint256  index ) public view returns(address proposer,address applicant, uint256 fundsRequested, uint tributeAmount, IERC20 tributeAddress, bool passed){

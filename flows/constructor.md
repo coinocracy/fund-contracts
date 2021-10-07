@@ -1,7 +1,7 @@
 ```mermaid
 
 flowchart TD
-A["Initialize Contribute Token"]
+A["Assign Contribute Token"]
 B["Initialize guild Bank with the Contribute Token"]
 C["Initialize the States for the Contract"]
 A --> B
