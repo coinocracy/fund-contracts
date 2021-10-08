@@ -14,16 +14,12 @@ import "./GuildBank.sol";
     OPEN TODO's: 
     - ADD multi-sig for admins
         https://github.com/gnosis/MultiSigWallet/blob/master/contracts/MultiSigWallet.sol?
-  
-    - make functions "Pauseable"??? 
    
     - allow for proxing of only a percentage of votes in 'updateDelegateKey' - would need to update submitVote as well. 
     
     -upon removal of a member, The VAO currently lets that member get their fairshare back of non-deployed funds, but..
     ...do we allow them to take out any perceived gains in equity? Or, just make the member leave any of those potential gains on the table. 
     ...maybe solution is to make them saleable/transferrable to other VAO members?  : LEAVE GAINS ON TABLE 
-    
-    -Break the Venture Moloch Contract into smaller components/contracts
     
     - "deposit" requires pre-approved tokens in order to transfer. 
     
@@ -34,8 +30,7 @@ import "./GuildBank.sol";
 working on possiblity of making 'shares' standard erc-20s
 */
 
-contract VentureMoloch is Ownable, AccessControl {
-// contract VentureMoloch is Ownable {
+contract VAO is Ownable, AccessControl {
     using SafeMath for uint256;
 
     /***************
@@ -47,7 +42,6 @@ contract VentureMoloch is Ownable, AccessControl {
     uint256 public abortWindow; // default = 5 periods (1 day)
     uint256 public dilutionBound; // default = 3 - maximum multiplier a YES voter will be obligated to pay in case of mass ragequit
     uint256 public summoningTime; // needed to determine the current period
-    //address private summoner; // Moloch summoner address reference for certain admin controls;
     
     IERC20 public contributionToken; // contribution token contract reference
     IERC20 private tributeToken; // tribute token contract reference 
@@ -83,15 +77,15 @@ contract VentureMoloch is Ownable, AccessControl {
         address indexed memberAddress, 
         uint8 uintVote);
     event ProcessProposal(
-            uint256 indexed proposalIndex,
-            address indexed memberAddress, 
-            address indexed applicant, 
-            uint256 tributeAmount,
-            IERC20 tributeToken,
-            //uint256 sharesRequested, //0
-            uint256 fundsRequested,
-            string details,
-            bool didPass);
+        uint256 indexed proposalIndex,
+        address indexed memberAddress, 
+        address indexed applicant, 
+        uint256 tributeAmount,
+        IERC20 tributeToken,
+        //uint256 sharesRequested, //0
+        uint256 fundsRequested,
+        string details,
+        bool didPass);
     event Ragequit(address indexed memberAddress);
 
     /// @notice Abort a proposal
@@ -102,7 +96,7 @@ contract VentureMoloch is Ownable, AccessControl {
     event UpdateDelegateKey(address indexed memberAddress, address newDelegateKey);
     //event SummonComplete(address indexed summoner, uint256 shares);
     event MemberAdded(address indexed _newMemberAddress, uint256 _sharesRequested, uint256 _tributeAmount);
-    event  DividendDeclared(uint256 indexed amountPerShare);
+    event DividendDeclared(uint256 indexed amountPerShare);
     event DividendWithdrawn(address indexed memberAddress, uint256 indexed amount);
     event ProposalFunded(uint256 proposalIndex, address applicant, uint256 amountFunded);
 
@@ -126,11 +120,7 @@ contract VentureMoloch is Ownable, AccessControl {
         Yes,
         No
     }
-    
-    /*
-        @dev Add-on terms from original Moloch Code: 
-        uint256 tributeAmount,
-    */
+
     struct Member {
         address delegateKey; // the key responsible for submitting proposals and voting - defaults to member address unless updated
         uint256 shares; // the # of shares assigned to this member
@@ -140,13 +130,6 @@ contract VentureMoloch is Ownable, AccessControl {
         uint256 allowedDividends; //authorized amount to withdraw
         uint256 valuePerShare;  //based on the tributeAmount given when buying 100,000 shares. 
     }
-    
-    /*
-        @dev Add-on terms from original Moloch Code: 
-        -IERC20 tributeToken,
-        -uint256 fundsRequested
-        TODO: remove sharesREquested? 
-    */
 
     struct ProPosalFlags{
         bool processed; // true only if the proposal has been processed
@@ -160,7 +143,6 @@ contract VentureMoloch is Ownable, AccessControl {
         address applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
         uint256 tributeAmount; // amount of tokens offered as tribute
         IERC20 tributeToken; // the tribute token reference for subscription or alternative contribution
-       // uint256 sharesRequested; // the # of shares the applicant is requesting
         uint256 fundsRequested; // the funds requested for applicant 
         string details; // proposal details - could be IPFS hash, plaintext, or JSON
         uint256 startingPeriod; // the period in which voting can start for this proposal
@@ -193,17 +175,17 @@ contract VentureMoloch is Ownable, AccessControl {
  
     
     modifier onlyMember {
-        require(members[msg.sender].shares > 0, "Moloch::onlyMember - not a member");
+        require(members[msg.sender].shares > 0, "vao::onlyMember - not a member");
         _;
     }
 
     modifier onlyDelegate {
-        require(members[memberAddressByDelegateKey[msg.sender]].shares > 0, "Moloch::onlyDelegate - not a delegate");
+        require(members[memberAddressByDelegateKey[msg.sender]].shares > 0, "vao::onlyDelegate - not a delegate");
         _;
     }
 
     modifier onlyWhitelisted {
-        require(hasRole(WHITELIST_ROLE, msg.sender), "Moloch::onlyWhitelist - not a whitelist");
+        require(hasRole(WHITELIST_ROLE, msg.sender), "vao::onlyWhitelist - not a whitelist");
         _;
     }
 
@@ -225,15 +207,15 @@ contract VentureMoloch is Ownable, AccessControl {
         uint256 _abortWindow,
         uint256 _dilutionBound
     ) {
-        require(_contributionToken != address(0), "Moloch::constructor - _contributionToken cannot be 0");
-        require(_periodDuration > 0, "Moloch::constructor - _periodDuration cannot be 0");
-        require(_votingPeriodLength > 0, "Moloch::constructor - _votingPeriodLength cannot be 0");
-        require(_votingPeriodLength <= MAX_VOTING_PERIOD_LENGTH, "Moloch::constructor - _votingPeriodLength exceeds limit");
-        require(_gracePeriodLength <= MAX_GRACE_PERIOD_LENGTH, "Moloch::constructor - _gracePeriodLength exceeds limit");
-        require(_abortWindow > 0, "Moloch::constructor - _abortWindow cannot be 0");
-        require(_abortWindow <= _votingPeriodLength, "Moloch::constructor - _abortWindow > _votingPeriodLength");
-        require(_dilutionBound > 0, "Moloch::constructor - _dilutionBound cannot be 0");
-        require(_dilutionBound <= MAX_DILUTION_BOUND, "Moloch::constructor - _dilutionBound exceeds limit");
+        require(_contributionToken != address(0), "vao::constructor - _contributionToken cannot be 0");
+        require(_periodDuration > 0, "vao::constructor - _periodDuration cannot be 0");
+        require(_votingPeriodLength > 0, "vao::constructor - _votingPeriodLength cannot be 0");
+        require(_votingPeriodLength <= MAX_VOTING_PERIOD_LENGTH, "vao::constructor - _votingPeriodLength exceeds limit");
+        require(_gracePeriodLength <= MAX_GRACE_PERIOD_LENGTH, "vao::constructor - _gracePeriodLength exceeds limit");
+        require(_abortWindow > 0, "vao::constructor - _abortWindow cannot be 0");
+        require(_abortWindow <= _votingPeriodLength, "vao::constructor - _abortWindow > _votingPeriodLength");
+        require(_dilutionBound > 0, "vao::constructor - _dilutionBound cannot be 0");
+        require(_dilutionBound <= MAX_DILUTION_BOUND, "vao::constructor - _dilutionBound exceeds limit");
         
         // contribution token is the base token for guild bank accounting
         contributionToken = IERC20(_contributionToken);
@@ -257,29 +239,21 @@ contract VentureMoloch is Ownable, AccessControl {
     function submitProposal(
         address applicant,
         uint256 tributeAmount,
-        IERC20 _tributeToken, // tribute token is used to "stake" a proposal. 
-        //uint256 sharesRequested,
+        IERC20 _tributeToken, // tribute token is used to "stake" a proposal.
         uint256 fundsRequested,
         string memory details
     )
         public
         onlyDelegate
     {
-        require(applicant != address(0), "Moloch::submitProposal - applicant cannot be 0");
-
-        // Make sure we won't run into overflows when doing calculations with shares.
-        // Note that totalShares + totalSharesRequested + sharesRequested is an upper bound
-        // on the number of shares that can exist until this proposal has been processed.
-        // require(totalShares.add(totalSharesRequested).add(sharesRequested) <= MAX_NUMBER_OF_SHARES, "Moloch::submitProposal - too many shares requested");
-        
-        // totalSharesRequested = totalSharesRequested.add(sharesRequested);
+        require(applicant != address(0), "vao::submitProposal - applicant cannot be 0");
 
         address memberAddress = memberAddressByDelegateKey[msg.sender];
         
         tributeToken = IERC20(_tributeToken);
         
-        // collect token tribute from applicant and store it in the Moloch until the proposal is processed
-        require(tributeToken.transferFrom(applicant, address(this), tributeAmount), "Moloch::submitProposal - tribute token transfer failed");
+        // collect token tribute from applicant and store it in the VAO until the proposal is processed
+        require(tributeToken.transferFrom(applicant, address(this), tributeAmount), "vao::submitProposal - tribute token transfer failed");
         
         // compute startingPeriod for proposal
         uint256 startingPeriod = max(
@@ -294,8 +268,6 @@ contract VentureMoloch is Ownable, AccessControl {
         proposal.applicant = applicant;
         proposal.tributeAmount = tributeAmount;
         proposal.tributeToken = tributeToken;
-        //sharesRequested: sharesRequested,
-        //sharesRequested: 0,
         proposal.fundsRequested = fundsRequested;
         proposal.details = details;
         proposal.startingPeriod = startingPeriod;
@@ -315,7 +287,6 @@ contract VentureMoloch is Ownable, AccessControl {
             applicant, 
             tributeAmount,
             tributeToken,
-            //sharesRequested,
             fundsRequested,
             details);
     }
@@ -324,17 +295,17 @@ contract VentureMoloch is Ownable, AccessControl {
         address memberAddress = memberAddressByDelegateKey[msg.sender];
         Member storage member = members[memberAddress];
 
-        require(proposalIndex < numProposal, "Moloch::submitVote - proposal does not exist");
+        require(proposalIndex < numProposal, "vao::submitVote - proposal does not exist");
         Proposal storage proposal = ProposalQueue[proposalIndex];
 
-        require(uintVote < 3, "Moloch::submitVote - uintVote must be less than 3");
+        require(uintVote < 3, "vao::submitVote - uintVote must be less than 3");
         Vote vote = Vote(uintVote);
 
-        require(getCurrentPeriod() >= proposal.startingPeriod, "Moloch::submitVote - voting period has not started");
-        require(!hasVotingPeriodExpired(proposal.startingPeriod), "Moloch::submitVote - proposal voting period has expired");
-        require(proposal.votesByMember[memberAddress] == Vote.Null, "Moloch::submitVote - member has already voted on this proposal");
-        require(vote == Vote.Yes || vote == Vote.No, "Moloch::submitVote - vote must be either Yes or No");
-        require(!proposal.flags.aborted, "Moloch::submitVote - proposal has been aborted");
+        require(getCurrentPeriod() >= proposal.startingPeriod, "vao::submitVote - voting period has not started");
+        require(!hasVotingPeriodExpired(proposal.startingPeriod), "vao::submitVote - proposal voting period has expired");
+        require(proposal.votesByMember[memberAddress] == Vote.Null, "vao::submitVote - member has already voted on this proposal");
+        require(vote == Vote.Yes || vote == Vote.No, "vao::submitVote - vote must be either Yes or No");
+        require(!proposal.flags.aborted, "vao::submitVote - proposal has been aborted");
 
         // store vote
         proposal.votesByMember[memberAddress] = vote;
@@ -361,15 +332,14 @@ contract VentureMoloch is Ownable, AccessControl {
     }
 
     function processProposal(uint256 proposalIndex) public {
-        require(proposalIndex < numProposal, "Moloch::processProposal - proposal does not exist");
+        require(proposalIndex < numProposal, "vao::processProposal - proposal does not exist");
         Proposal storage proposal = ProposalQueue[proposalIndex];
 
-        require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength),"Moloch::processProposal - proposal is not ready to be processed");
-        require(proposal.flags.processed == false, "Moloch::processProposal - proposal has already been processed");
-        require(proposalIndex == 0 || ProposalQueue[proposalIndex.sub(1)].flags.processed, "Moloch::processProposal - previous proposal must be processed");
+        require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength),"vao::processProposal - proposal is not ready to be processed");
+        require(proposal.flags.processed == false, "vao::processProposal - proposal has already been processed");
+        require(proposalIndex == 0 || ProposalQueue[proposalIndex.sub(1)].flags.processed, "vao::processProposal - previous proposal must be processed");
 
         proposal.flags.processed = true;
-        //totalSharesRequested = totalSharesRequested.sub(proposal.sharesRequested);
         
         bool didPass = proposal.yesVotes > proposal.noVotes;
 
@@ -387,7 +357,7 @@ contract VentureMoloch is Ownable, AccessControl {
             // return all tribute tokens to the applicant
             require(
                 proposal.tributeToken.transfer(proposal.applicant, proposal.tributeAmount),
-                "Moloch::processProposal - failing vote token transfer failed"
+                "vao::processProposal - failing vote token transfer failed"
             );
         }
 
@@ -397,7 +367,6 @@ contract VentureMoloch is Ownable, AccessControl {
             proposal.applicant,
             proposal.tributeAmount,
             proposal.tributeToken,
-            //proposal.sharesRequested,
             proposal.fundsRequested,
             proposal.details,
             didPass
@@ -413,23 +382,23 @@ contract VentureMoloch is Ownable, AccessControl {
     function fundApprovedProposal(uint index) public onlyWhitelisted
      {
         Proposal storage proposal = ProposalQueue[index];
-        require ( proposal.flags.didPass == true, "proposal must have passed"); 
-        require (proposal.flags.fundsTransferred == false, "proposal must not have been already funded"); 
+        require(proposal.flags.didPass == true, "proposal must have passed"); 
+        require(proposal.flags.fundsTransferred == false, "proposal must not have been already funded"); 
 
         // update total guild bank withdrawal tally to reflect requested funds disbursement 
         totalWithdrawals = totalWithdrawals.add(proposal.fundsRequested);
-        //mapping equity address to amount of tokens 
+        // mapping equity address to amount of tokens 
         // equityHoldings[proposal.tributeToken] = proposal.tributeAmount;
         // push IERC 20 address into array. 
         equityHoldingsAddress.push(proposal.tributeToken);
 
-        //fund the project
+        // fund the project
         require(
                 guildBank.withdraw(proposal.applicant, proposal.fundsRequested),
                 "Moloch::fundApprovedProposal - withdrawal of funding tokens from guildBank failed"
         );
         
-        //transfer the equity to guild bank
+        // transfer the equity to guild bank
         require(
             proposal.tributeToken.transfer(address(guildBank), proposal.tributeAmount),
             "Moloch::fundApprovedProposal - equity token transfer to guild bank failed"
@@ -485,46 +454,46 @@ contract VentureMoloch is Ownable, AccessControl {
     }
 
     // Extension to original Moloch Code: Summoner withdraws and administers tribute tokens (but not member contributions or dividends)
-    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) public onlyWhitelisted returns (bool)  {
+    function adminWithdrawAsset(IERC20 assetToken, address receiver, uint256 amount) public onlyWhitelisted returns (bool) {
         require(assetToken != contributionToken, "!contributions||dividends"); 
         return guildBank.adminWithdrawAsset(assetToken, receiver, amount);
     }
 
     //@dev function to add a member without going through submit proposal process
-    function  addMember (address _newMemberAddress, uint256 _tributeAmount) public onlyWhitelisted { 
+    function addMember (address _newMemberAddress, uint256 _tributeAmount) public onlyWhitelisted { 
         require(members[_newMemberAddress].exists  == false, "Moloch::member already exists");
         require(_newMemberAddress != address(0), "Moloch::addMember - applicant cannot be 0");
         //require new member address to not exist    
 
-        //TEST calculate valuePerShare over 100,000 shares
+        // TEST calculate valuePerShare over 100,000 shares
         uint valuePerShare = _tributeAmount.div(100000);  
-        //add shares to Member struct
+        // add shares to Member struct
         members[_newMemberAddress] = Member(_newMemberAddress, 100000, true, _tributeAmount, 0, 0, valuePerShare);
-        //add member address to delegate key
+        // add member address to delegate key
         memberAddressByDelegateKey[_newMemberAddress] = _newMemberAddress;
-        //update contributions to GuildBank 
+        // update contributions to GuildBank 
         totalContributed = totalContributed.add(_tributeAmount);
-        //add shares to Total Shares
+        // add shares to Total Shares
         totalShares = totalShares.add(100000);
-        //add a member's valuePerShare - to overall total value per share
+        // add a member's valuePerShare - to overall total value per share
         totalValuePerShare = totalValuePerShare.add(valuePerShare);
         // transfer contribution token to guild bank
         require(contributionToken.transferFrom(_newMemberAddress, address(guildBank), _tributeAmount), "Moloch::submitProposal - tribute token transfer failed");
-        //add address to member accounts arrary
+        // add address to member accounts arrary
         memberAccts.push(_newMemberAddress);
-        //emit event 
+        // emit event 
         emit MemberAdded(_newMemberAddress, 100000, _tributeAmount);
     }
 
    
-       //helper to calculate economic wieght - uses 'decimalFactor' to manage overflows
+    // helper to calculate economic wieght - uses 'decimalFactor' to manage overflows
     /*
         Example of how getMemberEconomicWeight works: 
         1.if a new member contributed 100,000 DAI for 1000,000 shares, member.valuePerShare = 1; 
         2. and there was a total of 1,000,000 shares purchased in total for 1,000,000 DAI between all members, then
         economicWeight of the new member = 1/10 = .1 (multiplied by decimalFactor to handle wei math);
     */
-    function getMemberEconomicWeight (address currentMember) internal view returns (uint256){
+    function getMemberEconomicWeight (address currentMember) internal view returns (uint256) {
         Member storage member = members[currentMember];
         uint256 x =  (member.valuePerShare.mul(decimalFactor)).div(totalValuePerShare);
         return x; 
@@ -535,15 +504,15 @@ contract VentureMoloch is Ownable, AccessControl {
 
         require(canRageQuit(member.highestIndexYesVote), "Moloch::ragequit - cant ragequit until highest index proposal member voted YES on is processed");
 
-         //calc fair share - combine these into own function?
-        //All Member contributions - All Member withdrawals
+        // calc fair share - combine these into own function?
+        // All Member contributions - All Member withdrawals
         uint256 totalAvailable = getTotalAvailable();     
-         //WITH HELPER FUNCTION 
+        // WITH HELPER FUNCTION 
         uint256 economicWeight = getMemberEconomicWeight(msg.sender);
-        //GET % OF MEMBER'S from totalAvalailbe using decimalFactor as multiplier 
+        // GET % OF MEMBER'S from totalAvalailbe using decimalFactor as multiplier 
         uint256 withdrawalAmount = economicWeight.mul(totalAvailable).div(decimalFactor);
 
-         //withdraw based on member's shares to total shares
+        // withdraw based on member's shares to total shares
         // uint256 withdrawalAmount = member.shares.mul(valuePerShare);
         uint256 valuePerShare = member.valuePerShare;
        
@@ -553,15 +522,15 @@ contract VentureMoloch is Ownable, AccessControl {
         member.tributeAmount = 0; 
         member.exists = false; 
         member.valuePerShare = 0; 
-        //update public tallys 
+        // update public tallys 
         totalWithdrawals = totalWithdrawals.add(withdrawalAmount); // update total guild bank withdrawal tally to reflect raqequit amount
         totalValuePerShare = totalValuePerShare.sub(valuePerShare);  //update tally for totalValuePerShare
-        //remove member from the memberAccts array
+        // remove member from the memberAccts array
         memberAccts.pop();    
         // instruct guild bank to transfer withdrawal amount to ragequitter
         require(
             guildBank.withdraw(msg.sender, withdrawalAmount),
-            "Moloch::ragequit - withdrawal of tokens from guildBank failed"
+            "Coinocracy::ragequit - withdrawal of tokens from guildBank failed"
         );
 
         emit Ragequit(msg.sender);
@@ -571,11 +540,11 @@ contract VentureMoloch is Ownable, AccessControl {
     function removeMember (address currentMember) public onlyWhitelisted {
         Member storage member = members[currentMember];
        
-        //? change to .exits == true ?
-       // require(members[currentMember].exists == true, "Moloch - address is not a member");
-        require(members[currentMember].shares > 0, "Moloch::removeMember - no shares to burn");
+
+        require(members[currentMember].exists == true, "Coinocracy - address is not a member");
+        require(members[currentMember].shares > 0, "Coinocracy::removeMember - no shares to burn");
         
-         //calc fair share 
+        //calc fair share 
 
         //All Member contributions - All Member withdrawals
         uint256 totalAvailable = getTotalAvailable();       
@@ -600,7 +569,7 @@ contract VentureMoloch is Ownable, AccessControl {
         // instruct guild bank to transfer withdrawal amount to member
         require(
             guildBank.withdraw(currentMember, withdrawalAmount),
-            "Moloch::ragequit - withdrawal of tokens from guildBank failed"
+            "Coinocracy::ragequit - withdrawal of tokens from guildBank failed"
         );
 
         emit Ragequit(currentMember);
@@ -620,7 +589,7 @@ contract VentureMoloch is Ownable, AccessControl {
         //total of all dividends can not exceed total contributions - withdrawals
         //Add multiple of totalValuePerShare = totalContributed/totalShares 
         // uint shareMultiple = totalContributed.div(totalShares); 
-        require(totalAvailable > amountPerShare.mul(totalShares).mul(totalValuePerShare), "Moloch:declareDividend - Not enough funds available");
+        require(totalAvailable > amountPerShare.mul(totalShares).mul(totalValuePerShare), "Coinocracy:declareDividend - Not enough funds available");
 
         //iterate over the length memberAccts array and add to members[i].allowedDividends 
         for(uint256 i = 0; i < memberAccts.length; i++)
@@ -661,13 +630,13 @@ contract VentureMoloch is Ownable, AccessControl {
     function deposit (uint256 amount, address tributeAddress) public returns(bool) {
         //add to totalContributed
         totalContributed = totalContributed.add(amount);
-        require(contributionToken.transferFrom(msg.sender,address (guildBank), amount));
+        require(contributionToken.transferFrom(msg.sender, address(guildBank), amount));
         emit Deposit (msg.sender, amount);
 
         //TEST this -- may not need pre-approval??
         //require (IERC20.transfer(address(guildBank), amount));
     }
-    
+
     /***************
     GETTER FUNCTIONS
     ***************/
@@ -683,17 +652,18 @@ contract VentureMoloch is Ownable, AccessControl {
     function  getMember () view public returns ( address [] memory) {
         return memberAccts;
     }
+
     //details for any member address
     function  getMemberDetails (address _member) public view returns(address, uint, bool, uint, uint) {     
         return (members[_member].delegateKey, members[_member].shares, members[_member].exists, members[_member].tributeAmount, members[_member].highestIndexYesVote);
     }
+
     //some details for proposal
     function getProposalDetails(uint256  index ) public view returns(address proposer,address applicant, uint256 fundsRequested, uint tributeAmount, IERC20 tributeAddress, bool passed){
         require(index < numProposal, "Moloch::getProposalDetails - proposal doesn't exist");
         return (ProposalQueue[index].proposer,ProposalQueue[index].applicant, ProposalQueue[index].fundsRequested,ProposalQueue[index].tributeAmount,
         ProposalQueue[index].tributeToken, ProposalQueue[index].flags.didPass);
     }
-  
 
     function getProposalQueueLength() public view returns (uint256) {
         return numProposal;
@@ -714,10 +684,12 @@ contract VentureMoloch is Ownable, AccessControl {
         require(proposalIndex < numProposal, "Moloch::getProposalVote - proposal doesn't exist");
         return ProposalQueue[proposalIndex].votesByMember[memberAddress];
     }
+
     //get GuildBank balance for an equity token
     function getEquityBalance(IERC20 assetToken) public view returns (uint256) {
         return IERC20(assetToken).balanceOf(address(guildBank));
     }
+
     function getEquityTokenAddresses () public view returns(IERC20 [] memory)  {
         return equityHoldingsAddress;
     }
@@ -725,8 +697,9 @@ contract VentureMoloch is Ownable, AccessControl {
     function getTotalAvailable () public view returns (uint256){
         return totalContributed.sub(totalWithdrawals);
     }
+
     ///at what period does the voting period end. 
-     function whenProposalVotingPeriodEnd (uint256 proposalIndex)  public view returns (uint){
+    function whenProposalVotingPeriodEnd (uint256 proposalIndex)  public view returns (uint){
        uint startingPeriod = ProposalQueue[proposalIndex].startingPeriod;
        return startingPeriod.add(votingPeriodLength);
     }        
