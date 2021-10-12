@@ -8,6 +8,22 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+// create the vao, setting the global variables, set the admin fee, set the first member as the creator
+// member adding - create a proposal applicant (which will actually get the funds + shares) proposer (which is the one giving the money) 
+// (set how many shares + funds they want, how much they are going to stake - put that money in escrow)
+// member adding - sponsor proposal (sponsor has to pay a fee)
+// member adding - voting
+// member adding - processing (check whether proposal succeeded) If it succeeded, assign share + funds to member
+// investment - create a proposal, applicant is the one receiving the funds from the vao. 
+// investment - sponsor proposal (sponsor has to pay a fee)
+// investment - voting
+// investment - processing (check whether proposal succeeded) If it succeeded, give the proposed funds to applicant
+// kicking - create a proposal, applicant is the one being kicked
+// ...
+// whitelisting - create a proposal, token to be whitelisted (can be used for staking + funding)
+// ragequiting - can only quit if current vote you voted yes on is processed
+// withdrawing/collecting tokens, etc
+
 contract VAO is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
 
@@ -39,7 +55,7 @@ contract VAO is ReentrancyGuard, Ownable {
     uint256 public constant MAX_DILUTION_BOUND = 10**18; // maximum dilution bound
     uint256 public constant MAX_NUMBER_OF_SHARES_AND_FUNDS = 10**18; // maximum number of shares that can be minted
     uint256 public constant MAX_TOKEN_WHITELIST_COUNT = 200; // maximum number of whitelisted tokens, default is 400
-    uint256 public constant MAX_TOKEN_BANK_COUNT = 100; // maximum number of tokens with non-zero balance in bank, default is 200
+    uint256 public constant MAX_TOKEN_BANK_COUNT = 200; // maximum number of tokens with non-zero balance in bank, default is 200
 
     // ***************
     // EVENTS
