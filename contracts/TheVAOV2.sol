@@ -494,7 +494,7 @@ contract VAO is ReentrancyGuard, Ownable {
             unsafeInternalTransfer(ESCROW, proposal.proposalAddresses[1], proposal.stakeToken, proposal.stakeOffered);
         }
 
-        _returnDeposit(proposal.proposalAddresses[1]);
+        _returnDeposit(proposal.proposalAddresses[2]);
 
         emit ProcessProposal(proposalIndex, proposalId, didPass);
     }
