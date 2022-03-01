@@ -10,6 +10,7 @@ import "dotenv/config";
 import "hardhat-deploy";
 import "hardhat-docgen";
 import "solidity-coverage";
+import "hardhat-contract-sizer";
 
 import "./tasks/accounts";
 import "./tasks/balance";
@@ -95,5 +96,12 @@ module.exports = {
         path: './docs',
         clear: true,
         runOnCompile: true,
-    }
+    },
+    contractSizer: {
+        alphaSort: true,
+        disambiguatePaths: false,
+        runOnCompile: true,
+        strict: false,
+        only: [],
+      }
 };
