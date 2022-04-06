@@ -1,6 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.2;
 
-//use compiler +0.5.3 in remix
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
@@ -46,16 +46,6 @@ contract VAO is ReentrancyGuard, Ownable {
     uint256 public lastPaymentTime; // this will set as 'now' in construtor = creationTime;
     address public vaoFundAddress; // This field MUST be set in constructor or set to default to creator here.
     uint256 public adminFeeDenominator = 200; // initial denominator
-   
-    // HARD-CODED LIMITS
-    // These numbers are quite arbitrary; they are small enough to avoid overflows when doing calculations
-    // with periods or shares, yet big enough to not limit reasonable use cases.
-    uint256 public constant MAX_VOTING_PERIOD_LENGTH = 10**18; // maximum length of voting period
-    uint256 public constant MAX_GRACE_PERIOD_LENGTH = 10**18; // maximum length of grace period
-    uint256 public constant MAX_DILUTION_BOUND = 10**18; // maximum dilution bound
-    uint256 public constant MAX_NUMBER_OF_SHARES_AND_FUNDS = 10**18; // maximum number of shares that can be minted
-    uint256 public constant MAX_TOKEN_WHITELIST_COUNT = 200; // maximum number of whitelisted tokens, default is 400
-    uint256 public constant MAX_TOKEN_BANK_COUNT = 200; // maximum number of tokens with non-zero balance in bank, default is 200
 
     // ***************
     // EVENTS
@@ -161,24 +151,20 @@ contract VAO is ReentrancyGuard, Ownable {
         uint256 _processingReward,
         address _vaoFundAddress
     ) {
-        require(_creator != address(0), "creator cannot be 0");
-        require(_periodDuration > 0, "_periodDuration cannot be 0");
-        require(_votingPeriodLength > 0, "_votingPeriodLength cannot be 0");
-        require(_votingPeriodLength <= MAX_VOTING_PERIOD_LENGTH, "_votingPeriodLength exceeds limit");
-        require(_gracePeriodLength <= MAX_GRACE_PERIOD_LENGTH, "_gracePeriodLength exceeds limit");
-        require(_dilutionBound > 0, "_dilutionBound cannot be 0");
-        require(_dilutionBound <= MAX_DILUTION_BOUND, "_dilutionBound exceeds limit");
-        require(_approvedTokens.length > 0, "need at least one approved token");
-        require(_approvedTokens.length <= MAX_TOKEN_WHITELIST_COUNT, "too many tokens");
-        require(_proposalDeposit >= _processingReward, "_proposalDeposit cannot be smaller than _processingReward");
-        require(_vaoFundAddress != address(0), "vaoFundAddress cannot be 0");
+        require(_creator != address(0), "creator = 0");
+        require(_periodDuration > 0, "_periodDuration = 0");
+        require(_votingPeriodLength > 0, "_votingPeriodLength = 0");
+        require(_dilutionBound > 0, "_dilutionBound = 0");
+        require(_approvedTokens.length > 0, "approved token = 0");
+        require(_proposalDeposit >= _processingReward, "_proposalDeposit < _processingReward");
+        require(_vaoFundAddress != address(0), "vaoFundAddress = 0");
         depositToken = _approvedTokens[0];
         // NOTE: move event up here, avoid stack too deep if too many approved tokens
         emit CreationComplete(_creator, _approvedTokens, block.timestamp, _periodDuration, _votingPeriodLength, _gracePeriodLength, _proposalDeposit, _dilutionBound, _processingReward);
 
 
         for (uint256 i = 0; i < _approvedTokens.length; i++) {
-            require(_approvedTokens[i] != address(0), "_approvedToken cannot be 0");
+            require(_approvedTokens[i] != address(0), "_approvedToken = 0");
             require(!tokenWhitelist[_approvedTokens[i]], "duplicate approved token");
             tokenWhitelist[_approvedTokens[i]] = true;
             approvedTokens.push(_approvedTokens[i]);
@@ -213,7 +199,7 @@ contract VAO is ReentrancyGuard, Ownable {
     /// @param _vaoFundAddress - where the Owner wants the funds to go. 
 
     function setAdminFee (uint256 _adminFeeDenominator, address _vaoFundAddress) public nonReentrant onlyOwner{
-        require(_adminFeeDenominator >= 200, "must be greater than 200bps"); 
+        require(_adminFeeDenominator >= 200, "< 200bps"); 
         adminFeeDenominator = _adminFeeDenominator; 
         vaoFundAddress = _vaoFundAddress;
     } //end of setAdminFee
@@ -221,7 +207,7 @@ contract VAO is ReentrancyGuard, Ownable {
     //can be called by an ETH Address
     function withdrawAdminFee () public nonReentrant {
        
-        require (block.timestamp >= lastPaymentTime.add(paymentPeriod), "90 days have not passed since last withdrawal");
+        require (block.timestamp >= lastPaymentTime.add(paymentPeriod), "< 90 days withdrawal");
         lastPaymentTime = block.timestamp;
         // local variables to save gas by reading from storage only 1x
         uint256 denominator = adminFeeDenominator; 
@@ -251,16 +237,11 @@ contract VAO is ReentrancyGuard, Ownable {
         address paymentToken,
         string memory details
     ) public nonReentrant returns (uint256 proposalId) {
-        require(sharesRequested.add(fundsRequested) <= MAX_NUMBER_OF_SHARES_AND_FUNDS, "too many shares requested");
-        require(tokenWhitelist[stakeToken], "stakeToken is not whitelisted");
-        require(tokenWhitelist[paymentToken], "payment is not whitelisted");
-        require(applicant != address(0), "applicant cannot be 0");
-        require(applicant != BANK && applicant != ESCROW && applicant != TOTAL, "applicant address cannot be reserved");
-        require(members[applicant].banned == 0, "proposal applicant must not be banned");
-
-        if (stakeOffered > 0 && userTokenBalances[BANK][stakeToken] == 0) {
-            require(totalBankTokens < MAX_TOKEN_BANK_COUNT, "bank is full");
-        }
+        require(tokenWhitelist[stakeToken], "stakeToken !whitelisted");
+        require(tokenWhitelist[paymentToken], "payment !whitelisted");
+        require(applicant != address(0), "applicant = 0");
+        require(applicant != BANK && applicant != ESCROW && applicant != TOTAL, "address reserved");
+        require(members[applicant].banned == 0, "proposal applicant !banned");
 
         // collect stake from proposer and store it in the VAO until the proposal is processed
         require(IERC20(stakeToken).transferFrom(msg.sender, address(this), stakeOffered), "stake token transfer failed");
@@ -273,9 +254,8 @@ contract VAO is ReentrancyGuard, Ownable {
     }
 
     function submitWhitelistProposal(address tokenToWhitelist, string memory details) public nonReentrant returns (uint256 proposalId) {
-        require(tokenToWhitelist != address(0), "must provide token address");
-        require(!tokenWhitelist[tokenToWhitelist], "cannot already have whitelisted the token");
-        require(approvedTokens.length < MAX_TOKEN_WHITELIST_COUNT, "cannot submit more whitelist proposals");
+        require(tokenToWhitelist != address(0), "!token");
+        require(!tokenWhitelist[tokenToWhitelist], "!whitelist");
 
         bool[6] memory flags; // [sponsored, processed, didPass, cancelled, whitelist, vaokick]
         flags[4] = true; // whitelist
@@ -287,8 +267,8 @@ contract VAO is ReentrancyGuard, Ownable {
     function submitVAOKickProposal(address memberToKick, string memory details) public nonReentrant returns (uint256 proposalId) {
         Member memory member = members[memberToKick];
 
-        require(member.shares > 0 || member.funds > 0, "member must have at least one share or one fund");
-        require(members[memberToKick].banned == 0, "member must not already be banned");
+        require(member.shares > 0 || member.funds > 0, "!member");
+        require(members[memberToKick].banned == 0, "member !banned");
 
         bool[6] memory flags; // [sponsored, processed, didPass, cancelled, whitelist, vaokick]
         flags[5] = true; // vaokick
@@ -338,25 +318,20 @@ contract VAO is ReentrancyGuard, Ownable {
 
         Proposal storage proposal = proposals[proposalId];
 
-        require(proposal.proposalAddresses[1] != address(0), "proposal must have been proposed");
-        require(!proposal.flags[0], "proposal has already been sponsored");
-        require(!proposal.flags[3], "proposal has been cancelled");
-        require(members[proposal.proposalAddresses[0]].banned == 0, "proposal applicant must not be banned");
-
-        if (proposal.stakeOffered > 0 && userTokenBalances[BANK][proposal.stakeToken] == 0) {
-            require(totalBankTokens < MAX_TOKEN_BANK_COUNT, "bank is full");
-        }
+        require(proposal.proposalAddresses[1] != address(0), "proposal !proposed");
+        require(!proposal.flags[0], "proposal sponsored");
+        require(!proposal.flags[3], "proposal cancelled");
+        require(members[proposal.proposalAddresses[0]].banned == 0, "applicant !banned");
 
         // whitelist proposal
         if (proposal.flags[4]) {
-            require(!tokenWhitelist[address(proposal.stakeToken)], "cannot already have whitelisted the token");
-            require(!proposedToWhitelist[address(proposal.stakeToken)], "already proposed to whitelist");
-            require(approvedTokens.length < MAX_TOKEN_WHITELIST_COUNT, "cannot sponsor more whitelist proposals");
+            require(!tokenWhitelist[address(proposal.stakeToken)], "!whitelist");
+            require(!proposedToWhitelist[address(proposal.stakeToken)], "!proposed whitelist");
             proposedToWhitelist[address(proposal.stakeToken)] = true;
 
         // kick proposal
         } else if (proposal.flags[5]) {
-            require(!proposedToKick[proposal.proposalAddresses[0]], "already proposed to kick");
+            require(!proposedToKick[proposal.proposalAddresses[0]], "!proposed kick");
             proposedToKick[proposal.proposalAddresses[0]] = true;
         }
 
@@ -384,16 +359,16 @@ contract VAO is ReentrancyGuard, Ownable {
         address memberAddress = memberAddressByDelegateKey[msg.sender];
         Member storage member = members[memberAddress];
 
-        require(proposalIndex < proposalQueue.length, "proposal does not exist");
+        require(proposalIndex < proposalQueue.length, "proposal !exist");
         Proposal storage proposal = proposals[proposalQueue[proposalIndex]];
 
-        require(uintVote < 3, "must be less than 3");
+        require(uintVote < 3, "!vote");
         Vote vote = Vote(uintVote);
 
-        require(getCurrentPeriod() >= proposal.startingPeriod, "voting period has not started");
-        require(!hasVotingPeriodExpired(proposal.startingPeriod), "proposal voting period has expired");
-        require(proposal.votesByMember[memberAddress] == Vote.Null, "member has already voted");
-        require(vote == Vote.Yes || vote == Vote.No, "vote must be either Yes or No");
+        require(getCurrentPeriod() >= proposal.startingPeriod, "voting < start");
+        require(!hasVotingPeriodExpired(proposal.startingPeriod), "voting > expire");
+        require(proposal.votesByMember[memberAddress] == Vote.Null, "member voted");
+        require(vote == Vote.Yes || vote == Vote.No, "!vote");
 
         proposal.votesByMember[memberAddress] = vote;
 
@@ -464,25 +439,15 @@ contract VAO is ReentrancyGuard, Ownable {
         uint256 proposalId = proposalQueue[proposalIndex];
         Proposal storage proposal = proposals[proposalId];
 
-        require(!proposal.flags[4] && !proposal.flags[5], "must be a standard proposal");
+        require(!proposal.flags[4] && !proposal.flags[5], "!standard proposal");
 
         proposal.flags[1] = true; // processed
 
         bool didPass = _didPass(proposalIndex);
 
-        // Make the proposal fail if the new total number of shares and funds exceeds the limit
-        if (totalShares.add(totalFunds).add(proposal.sharesRequested).add(proposal.fundsRequested) > MAX_NUMBER_OF_SHARES_AND_FUNDS) {
-            didPass = false;
-        }
-
         // Make the proposal fail if it is requesting more tokens as payment than the available bank balance
         if (proposal.paymentRequested > userTokenBalances[BANK][proposal.paymentToken]) {
             didPass = false;
-        }
-
-        // Make the proposal fail if it would result in too many tokens with non-zero balance in bank
-        if (proposal.stakeOffered > 0 && userTokenBalances[BANK][proposal.stakeToken] == 0 && totalBankTokens >= MAX_TOKEN_BANK_COUNT) {
-           didPass = false;
         }
 
         // PROPOSAL PASSED
@@ -505,15 +470,11 @@ contract VAO is ReentrancyGuard, Ownable {
         uint256 proposalId = proposalQueue[proposalIndex];
         Proposal storage proposal = proposals[proposalId];
 
-        require(proposal.flags[4], "must be a whitelist proposal");
+        require(proposal.flags[4], "!whitelist");
 
         proposal.flags[1] = true; // processed
 
         bool didPass = _didPass(proposalIndex);
-
-        if (approvedTokens.length >= MAX_TOKEN_WHITELIST_COUNT) {
-            didPass = false;
-        }
 
         if (didPass) {
             proposal.flags[2] = true; // didPass
@@ -535,7 +496,7 @@ contract VAO is ReentrancyGuard, Ownable {
         uint256 proposalId = proposalQueue[proposalIndex];
         Proposal storage proposal = proposals[proposalId];
 
-        require(proposal.flags[5], "must be a kick proposal");
+        require(proposal.flags[5], "!kick");
 
         proposal.flags[1] = true; // processed
 
@@ -581,12 +542,12 @@ contract VAO is ReentrancyGuard, Ownable {
     }
 
     function _validateProposalForProcessing(uint256 proposalIndex) internal view {
-        require(proposalIndex < proposalQueue.length, "proposal does not exist");
+        require(proposalIndex < proposalQueue.length, "!proposal");
         Proposal storage proposal = proposals[proposalQueue[proposalIndex]];
 
         require(getCurrentPeriod() >= proposal.startingPeriod.add(votingPeriodLength).add(gracePeriodLength), "proposal is not ready to be processed");
-        require(proposal.flags[1] == false, "proposal has already been processed");
-        require(proposalIndex == 0 || proposals[proposalQueue[proposalIndex.sub(1)]].flags[1], "previous proposal must be processed");
+        require(proposal.flags[1] == false, "proposal processed");
+        require(proposalIndex == 0 || proposals[proposalQueue[proposalIndex.sub(1)]].flags[1], "previous proposal !processed");
     }
 
     function _returnDeposit(address sponsor) internal {
@@ -603,10 +564,10 @@ contract VAO is ReentrancyGuard, Ownable {
 
         Member storage member = members[memberAddress];
 
-        require(member.shares >= sharesToBurn, "insufficient shares");
-        require(member.funds >= fundsToBurn, "insufficient funds");
+        require(member.shares >= sharesToBurn, "!shares");
+        require(member.funds >= fundsToBurn, "!funds");
 
-        require(canRagequit(member.highestIndexYesVote), "cannot ragequit until highest index proposal member voted YES on is processed");
+        require(canRagequit(member.highestIndexYesVote), "!max(proposal process)");
 
         uint256 sharesAndFundsToBurn = sharesToBurn.add(fundsToBurn);
 
@@ -632,9 +593,9 @@ contract VAO is ReentrancyGuard, Ownable {
     function ragekick(address memberToKick) public nonReentrant {
         Member storage member = members[memberToKick];
 
-        require(member.banned != 0, "member must be banned");
-        require(member.funds > 0, "member must have some funds"); // note - should be impossible for banned member to have shares
-        require(canRagequit(member.highestIndexYesVote), "cannot ragequit until highest index proposal member voted YES on is processed");
+        require(member.banned != 0, "member !banned");
+        require(member.funds > 0, "!member"); // note - should be impossible for banned member to have shares
+        require(canRagequit(member.highestIndexYesVote), "!max(proposal process)");
 
         _ragequit(memberToKick, 0, member.funds);
     }
@@ -643,12 +604,12 @@ contract VAO is ReentrancyGuard, Ownable {
         _withdrawBalance(token, amount);
     }
 
-    function withdrawBalances(address[] memory tokens, uint256[] memory amounts, bool max) public nonReentrant {
-        require(tokens.length == amounts.length, "tokens and amounts arrays must be matching lengths");
+    function withdrawBalances(address[] memory tokens, uint256[] memory amounts, bool maxWithdraw) public nonReentrant {
+        require(tokens.length == amounts.length, "!length");
 
         for (uint256 i=0; i < tokens.length; i++) {
             uint256 withdrawAmount = amounts[i];
-            if (max) { // withdraw the maximum balance
+            if (maxWithdraw) { // withdraw the maximum balance
                 withdrawAmount = userTokenBalances[msg.sender][tokens[i]];
             }
 
@@ -657,7 +618,7 @@ contract VAO is ReentrancyGuard, Ownable {
     }
     
     function _withdrawBalance(address token, uint256 amount) internal {
-        require(userTokenBalances[msg.sender][token] >= amount, "insufficient balance");
+        require(userTokenBalances[msg.sender][token] >= amount, "!balance");
         unsafeSubtractFromBalance(msg.sender, token, amount);
         require(IERC20(token).transfer(msg.sender, amount), "transfer failed");
         emit Withdraw(msg.sender, token, amount);
@@ -666,9 +627,9 @@ contract VAO is ReentrancyGuard, Ownable {
     function collectTokens(address token) public onlyDelegate nonReentrant {
         uint256 amountToCollect = IERC20(token).balanceOf(address(this)).sub(userTokenBalances[TOTAL][token]);
         // only collect if 1) there are tokens to collect 2) token is whitelisted 3) token has non-zero balance
-        require(amountToCollect > 0, "no tokens to collect");
-        require(tokenWhitelist[token], "token to collect must be whitelisted");
-        require(userTokenBalances[BANK][token] > 0, "token to collect must have non-zero bank balance");
+        require(amountToCollect > 0, "!tokens");
+        require(tokenWhitelist[token], "token !whitelisted");
+        require(userTokenBalances[BANK][token] > 0, "token bal = 0");
         
         unsafeAddToBalance(BANK, token, amountToCollect);
         emit TokensCollected(token, amountToCollect);
@@ -677,9 +638,9 @@ contract VAO is ReentrancyGuard, Ownable {
     // NOTE: requires that delegate key which sent the original proposal cancels, msg.sender == proposal.proposer
     function cancelProposal(uint256 proposalId) public nonReentrant {
         Proposal storage proposal = proposals[proposalId];
-        require(!proposal.flags[0], "proposal has already been sponsored");
-        require(!proposal.flags[3], "proposal has already been cancelled");
-        require(msg.sender == proposal.proposalAddresses[1], "solely the proposer can cancel");
+        require(!proposal.flags[0], "proposal sponsored");
+        require(!proposal.flags[3], "proposal cancelled");
+        require(msg.sender == proposal.proposalAddresses[1], "!proposer");
 
         proposal.flags[3] = true; // cancelled
         
@@ -688,7 +649,7 @@ contract VAO is ReentrancyGuard, Ownable {
     }
 
     function updateDelegateKey(address newDelegateKey) public nonReentrant onlyShareholder {
-        require(newDelegateKey != address(0), "newDelegateKey cannot be 0");
+        require(newDelegateKey != address(0), "!newDelegateKey");
 
         // skip checks if member is setting the delegate key to their member address
         if (newDelegateKey != msg.sender) {
@@ -706,7 +667,7 @@ contract VAO is ReentrancyGuard, Ownable {
 
     // can only ragequit if the latest proposal you voted YES on has been processed
     function canRagequit(uint256 highestIndexYesVote) public view returns (bool) {
-        require(highestIndexYesVote < proposalQueue.length, "proposal does not exist");
+        require(highestIndexYesVote < proposalQueue.length, "!proposal");
         return proposals[proposalQueue[highestIndexYesVote]].flags[1];
     }
 
@@ -739,8 +700,8 @@ contract VAO is ReentrancyGuard, Ownable {
     }
 
     function getMemberProposalVote(address memberAddress, uint256 proposalIndex) public view returns (Vote) {
-        require(members[memberAddress].exists, "member does not exist");
-        require(proposalIndex < proposalQueue.length, "proposal does not exist");
+        require(members[memberAddress].exists, "!member");
+        require(proposalIndex < proposalQueue.length, "!proposal");
         return proposals[proposalQueue[proposalIndex]].votesByMember[memberAddress];
     }
 
@@ -766,17 +727,17 @@ contract VAO is ReentrancyGuard, Ownable {
         unsafeAddToBalance(to, token, amount);
     }
 
-    function fairShare(uint256 balance, uint256 shares, uint256 totalShares) internal pure returns (uint256) {
-        require(totalShares != 0, "must possess shares");
+    function fairShare(uint256 balance, uint256 shares, uint256 totalFairShares) internal pure returns (uint256) {
+        require(totalFairShares != 0, "!shares");
 
         if (balance == 0) { return 0; }
 
         uint256 prod = balance * shares;
 
         if (prod / balance == shares) { // no overflow in multiplication above?
-            return prod / totalShares;
+            return prod / totalFairShares;
         }
 
-        return (balance / totalShares) * shares;
+        return (balance / totalFairShares) * shares;
     }
 }
