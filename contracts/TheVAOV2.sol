@@ -691,6 +691,10 @@ contract VAO is ReentrancyGuard, Ownable {
         return proposalQueue.length;
     }
 
+    function getProposalAddresses(uint256 proposalId) public view returns (address[3] memory) {
+        return proposals[proposalId].proposalAddresses;
+    }
+
     function getProposalFlags(uint256 proposalId) public view returns (bool[6] memory) {
         return proposals[proposalId].flags;
     }
