@@ -1,11 +1,13 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signers";
 import { BigNumber, Signer } from "ethers";
 import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
-import { VAO, VAO__factory } from "../typechain";
+import { VAO, VAO__factory, VAOToken, VAOToken__factory } from "../typechain";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-    let accounts: Signer[];
+    let accounts: SignerWithAddress[];
+    let tokenContract: VAOToken;
     let vaoContract: VAO;
 
     /*
@@ -19,23 +21,30 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         uint256 _processingReward,
         address _vaoFundAddress
     */
-    const creator = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-    const approvedTokens= ["0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"];
-    const periodDuration = 17280;
+    accounts = await hre.ethers.getSigners();
+    const firstAddress = await accounts[0].getAddress();
+
+    const tokenFactory = (await hre.ethers.getContractFactory(
+        "VAOToken",
+        accounts[0].address
+    )) as VAOToken__factory;
+
+    tokenContract = await tokenFactory.deploy();
+    await tokenContract.deployed();
+
+    const creator = firstAddress;
+    const approvedTokens= [tokenContract.address];
+    const periodDuration = 30;
     const votingPeriodLength = 35;
     const gracePeriodLength = 35;
-    const proposalDeposit = hre.Web3.utils.toWei('10');
+    const proposalDeposit = hre.Web3.utils.toWei('0.1');
     const dilutionBound = 3;
     const processingReward = hre.Web3.utils.toWei('0.1');
-    const vaoFundAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-
-    accounts = await hre.ethers.getSigners();
-
-    console.log(await accounts[0].getAddress());
+    const vaoFundAddress = firstAddress;
 
     const vaoFactory = (await hre.ethers.getContractFactory(
         "VAO",
-        accounts[0]
+        accounts[0].address
     )) as VAO__factory;
 
     vaoContract = await vaoFactory.deploy(creator, approvedTokens, periodDuration, votingPeriodLength, gracePeriodLength, proposalDeposit, dilutionBound, processingReward, vaoFundAddress);

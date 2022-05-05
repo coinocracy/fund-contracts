@@ -10,7 +10,8 @@
         "lint:fix": "prettier --write 'scripts/**/*.{js,ts}' 'test/**/*.{js,ts}' 'tasks/**/*.{js,ts}' && tslint --fix --config tslint.json --project tsconfig.json && solhint contracts/**/*.sol",
         "lint": "tslint --config tslint.json --project tsconfig.json && solhint contracts/**/*.sol",
         "format": "prettier --check \"**/*.{ts,js,sol}\"",
-        "format:fix": "prettier --write \"**/*.{ts,js,sol}\""
+        "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
+        "build-contracts": "sol-merger \"./contracts/*.sol\" ./build"
     },
     "files": [
         "dist/src/",
@@ -62,5 +63,8 @@
     },
     "mocha": {
         "timeout": 10000000
+    },
+    "dependencies": {
+        "sol-merger": "^4.1.1"
     }
 }
